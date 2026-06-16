@@ -1,0 +1,115 @@
+// TamnaIndex — Prisma schema
+// 제주 부동산 유튜브 매물 영상 수집·표준화·지도화 플랫폼
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 중개사 / 유튜브 채널
+model Agent {
+  id          String   @id @default(cuid())
+  channelId   String   @unique
+  channelName String
+  channelUrl  String?
+  name        String?
+  regNo       String?  // 공인중개사 등록번호
+  office      String?
+  expertise   String?
+  phone       String?
+  verified    Boolean  @default(false)
+  optedOut    Boolean  @default(false)
+  plan        String   @default("free") // free | featured | premium
+  createdAt   DateTime @default(now())
+  listings    Listing[]
+}
+
+/// 매물 = 영상 1건 (표준 구조화 결과 포함)
+model Listing {
+  id                String   @id @default(cuid())
+  videoId           String   @unique
+  videoUrl          String
+  thumbnailUrl      String
+  title             String
+  channelId         String
+  agent             Agent?   @relation(fields: [channelId], references: [channelId])
+  publishedAt       DateTime
+  collectedAt       DateTime @default(now())
+  // ── 표준 구조화 결과 ──
+  propertyType      String   // 단독주택|토지|상가|아파트|전원주택|상가주택|빌라|기타
+  dealType          String   // 매매|전세|월세|임대|경매
+  priceText         String
+  priceManwon       Int
+  priceHistory      String   @default("[]") // JSON [{manwon, at}]
+  areaM2            Float?
+  areaPyeong        Float?
+  zoning            String?
+  addressText       String
+  region            String   // 정규화 읍면동
+  lat               Float
+  lng               Float
+  geohash           String?
+  summary           String
+  highlights        String   @default("[]") // JSON string[]
+  keywords          String   @default("[]") // JSON string[]
+  themes            String   @default("[]") // JSON string[]
+  extractionSource  String   @default("ai") // ai | fallback
+  confidence        Float    @default(0.9)
+  // ── 운영 ──
+  status            String   @default("draft") // collected|structuring|draft|published|rejected|opted_out|error
+  reviewedBy        String?
+  publishedAt2      DateTime?
+  takedownAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  favorites         Favorite[]
+}
+
+/// 수집 잡 로그 (운영 가시성)
+model CollectionJob {
+  id          String   @id @default(cuid())
+  trigger     String   @default("manual") // cron | manual
+  region      String?
+  found       Int      @default(0)
+  processed   Int      @default(0)
+  failed      Int      @default(0)
+  items       String   @default("[]") // JSON [{videoId, step, source, status}]
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+}
+
+/// 옵트아웃 블랙리스트 (videoId 또는 channelId)
+model OptOut {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  reason      String?
+  requestedBy String?
+  at          DateTime @default(now())
+}
+
+/// 찜 (사용자)
+model Favorite {
+  id              String   @id @default(cuid())
+  userId          String   @default("guest")
+  listingId       String
+  listing         Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  notifyPriceDrop Boolean  @default(false)
+  savedAt         DateTime @default(now())
+
+  @@unique([userId, listingId])
+}
+
+/// 저장 검색 + 알림
+model SavedSearch {
+  id             String   @id @default(cuid())
+  userId         String   @default("guest")
+  query          String   // JSON filters
+  alertFreq      String   @default("off") // instant | daily | off
+  lastNotifiedAt DateTime?
+  createdAt      DateTime @default(now())
+}
