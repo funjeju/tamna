@@ -9,21 +9,39 @@ import {
   TrendingUp,
   Radio,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { JEJU_OUTLINE_PATH } from "@/lib/regions";
-import type { Theme } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { JEJU_OUTLINE_PATH, REGION_NAMES } from "@/lib/regions";
+import type { Theme, ListingFilters } from "@/lib/types";
 import { THEMES } from "@/lib/types";
 
 interface HeroProps {
   onSearch: (q: string) => void;
+  onFilterSearch: (partial: Partial<ListingFilters>) => void;
   onPickTheme: (t: Theme) => void;
   onOpenMap: () => void;
   publishedCount: number;
   todayCount: number;
   freshness: number;
 }
+
+// 가격대 옵션 (만원)
+const PRICE_RANGES: { value: string; label: string; min?: number; max?: number }[] = [
+  { value: "all", label: "가격 전체" },
+  { value: "0-10000", label: "1억 이하", max: 10000 },
+  { value: "10000-20000", label: "1억~2억", min: 10000, max: 20000 },
+  { value: "20000-30000", label: "2억~3억", min: 20000, max: 30000 },
+  { value: "30000-50000", label: "3억~5억", min: 30000, max: 50000 },
+  { value: "50000-100000", label: "5억~10억", min: 50000, max: 100000 },
+  { value: "100000-", label: "10억 이상", min: 100000 },
+];
 
 const THEME_META: Record<Theme, { desc: string; tint: string; ring: string }> = {
   세컨하우스: {
@@ -59,18 +77,26 @@ const THEME_META: Record<Theme, { desc: string; tint: string; ring: string }> = 
 };
 
 export function Hero({
-  onSearch,
+  onFilterSearch,
   onPickTheme,
   onOpenMap,
   publishedCount,
   todayCount,
   freshness,
 }: HeroProps) {
-  const [q, setQ] = useState("");
+  const [region, setRegion] = useState("all");
+  const [price, setPrice] = useState("all");
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    onSearch(q.trim());
+    const partial: Partial<ListingFilters> = {};
+    if (region !== "all") partial.regions = [region];
+    const pr = PRICE_RANGES.find((p) => p.value === price);
+    if (pr) {
+      if (pr.min !== undefined) partial.priceMin = pr.min;
+      if (pr.max !== undefined) partial.priceMax = pr.max;
+    }
+    onFilterSearch(partial);
   };
 
   return (
@@ -149,23 +175,46 @@ export function Hero({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.18 }}
           onSubmit={submit}
-          className="mt-7 flex w-full max-w-2xl items-center gap-2"
+          className="mt-7 flex w-full max-w-2xl flex-col gap-2 sm:flex-row sm:items-center"
           role="search"
-          aria-label="자연어 매물 검색"
+          aria-label="지역·가격대 매물 검색"
         >
-          <div className="relative flex-1">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="애월 바다 보이는 2억대 구옥"
-              aria-label="매물 검색어"
-              className="h-12 border-stone/60 bg-background pl-10 pr-4 text-base shadow-sm"
-            />
-          </div>
+          <Select value={region} onValueChange={setRegion}>
+            <SelectTrigger
+              aria-label="지역 선택"
+              className="h-12 flex-1 border-stone/60 bg-background text-base shadow-sm"
+            >
+              <span className="inline-flex items-center gap-2">
+                <MapIcon className="size-4 text-tangerine" aria-hidden="true" />
+                <SelectValue placeholder="지역 전체" />
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">지역 전체</SelectItem>
+              {REGION_NAMES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={price} onValueChange={setPrice}>
+            <SelectTrigger
+              aria-label="가격대 선택"
+              className="h-12 flex-1 border-stone/60 bg-background text-base shadow-sm"
+            >
+              <SelectValue placeholder="가격 전체" />
+            </SelectTrigger>
+            <SelectContent>
+              {PRICE_RANGES.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Button
             type="submit"
             size="lg"

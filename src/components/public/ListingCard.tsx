@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PROPERTY_PIN } from "@/lib/regions";
 import type { Listing } from "@/lib/types";
@@ -35,6 +34,7 @@ interface ListingCardProps {
 
 export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [favState, setFavState] = useState<boolean>(!!listing.isFavorited);
   const { toast } = useToast();
@@ -55,9 +55,6 @@ export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardPr
         setFavState(res.favorited);
         toast({
           title: res.favorited ? "찜했습니다" : "찜을 해제했습니다",
-          description: res.favorited
-            ? "마이 페이지에서 저장한 매물을 볼 수 있어요."
-            : undefined,
         });
         onFavoriteChange?.();
       } catch {
@@ -75,7 +72,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardPr
 
   return (
     <motion.article
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -3 }}
       transition={{ type: "spring", stiffness: 220, damping: 22 }}
       onClick={() => onOpen(listing.id)}
       role="button"
@@ -87,28 +84,18 @@ export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardPr
           onOpen(listing.id);
         }
       }}
-      className={cn(
-        "group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sea/60",
-      )}
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sea/60"
     >
-      {/* 게시 상태 좌측 3px 바 (공개 사이트는 published만 노출되지만 일관성 유지) */}
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute top-0 left-0 z-20 h-full w-[3px]",
-          listing.status === "published" ? "bg-tangerine" : "bg-stone/60",
-        )}
-      />
-
       {/* 썸네일 16:9 */}
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
-        {!imgLoaded && <Skeleton className="absolute inset-0" />}
-        {listing.thumbnailUrl ? (
+        {!imgLoaded && !imgError && <Skeleton className="absolute inset-0" />}
+        {listing.thumbnailUrl && !imgError ? (
           <img
             src={listing.thumbnailUrl}
             alt={`${listing.title} 썸네일`}
             loading="lazy"
             onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
             className={cn(
               "h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]",
               imgLoaded ? "opacity-100" : "opacity-0",
@@ -116,142 +103,82 @@ export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardPr
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-paper to-muted text-muted-foreground">
-            <PlayCircle className="size-10 opacity-40" />
+            <PlayCircle className="size-10 opacity-30" />
           </div>
         )}
 
         {/* 좌상단 유형 배지 */}
         <div className="absolute top-2 left-2 flex items-center gap-1.5">
           <Badge
-            className="border-transparent text-white shadow-sm"
+            className="border-transparent px-1.5 py-0 text-[11px] text-white shadow-sm"
             style={{ backgroundColor: pin.color }}
           >
             <span aria-hidden="true">{pin.emoji}</span>
             {pin.label}
           </Badge>
+          {dropped && drop ? (
+            <Badge className="border-transparent bg-tangerine px-1.5 py-0 text-[11px] text-tangerine-foreground shadow-sm">
+              <TrendingDown className="size-3" aria-hidden="true" />
+              인하
+            </Badge>
+          ) : null}
         </div>
 
-        {/* 우상단 가격인하 뱃지 */}
-        {dropped && drop ? (
-          <div className="absolute top-2 right-2">
-            <Badge className="border-transparent bg-tangerine text-tangerine-foreground shadow-sm">
-              <TrendingDown className="size-3" aria-hidden="true" />
-              ↓인하
-            </Badge>
-          </div>
-        ) : null}
+        {/* 우상단 찜 버튼 */}
+        <button
+          type="button"
+          aria-label={favState ? "찜 해제" : "찜하기"}
+          aria-pressed={favState}
+          onClick={handleFav}
+          disabled={favBusy}
+          className={cn(
+            "absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-background/85 backdrop-blur transition hover:bg-background",
+            favState ? "text-tangerine" : "text-muted-foreground",
+          )}
+        >
+          <Heart className={cn("size-4", favState && "fill-current")} aria-hidden="true" />
+        </button>
 
-        {/* 좌하단 방금 게시 라이브 닷 */}
+        {/* 좌하단 방금 게시 */}
         {just ? (
-          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-basalt/85 px-2 py-0.5 text-[11px] font-medium text-paper backdrop-blur">
-            <span className="live-dot size-1.5 rounded-full bg-tangerine" />
+          <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-basalt/85 px-2 py-0.5 text-[10px] font-medium text-paper backdrop-blur">
             <Radio className="size-3 text-tangerine" aria-hidden="true" />
             방금 게시
           </div>
         ) : null}
       </div>
 
-      {/* 본문 */}
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-basalt">
+      {/* 본문 — 최소 정보, 컴팩트 */}
+      <div className="flex flex-col gap-1 p-2.5">
+        <h3 className="line-clamp-1 text-[13px] font-medium leading-snug text-basalt">
           {listing.title}
         </h3>
 
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-lg font-bold text-basalt tabular">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="font-mono text-base font-bold text-basalt tabular">
             {formatPrice(listing.priceManwon, listing.priceText)}
           </span>
           {listing.dealType ? (
-            <Badge
-              variant="outline"
-              className="border-stone/60 text-muted-foreground"
-            >
+            <span className="shrink-0 text-[11px] text-muted-foreground">
               {listing.dealType}
-            </Badge>
+            </span>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           {listing.areaPyeong ? (
             <span className="font-mono tabular">{formatArea(listing.areaPyeong)}</span>
           ) : null}
-          <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1 text-tangerine">
+          <span className="inline-flex items-center gap-0.5 text-tangerine">
             <MapPin className="size-3" aria-hidden="true" />
             {listing.region}
           </span>
-          {drop && drop.diff > 0 ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="font-mono text-tangerine tabular">
-                {drop.diff.toLocaleString("ko-KR")}만 ↓
-              </span>
-            </>
+          {listing.agent?.verified ? (
+            <BadgeCheck className="size-3 text-sea" aria-label="검증된 중개사" />
           ) : null}
-        </div>
-
-        {/* 키워드 해시 */}
-        {listing.keywords?.length ? (
-          <div className="flex flex-wrap gap-1">
-            {listing.keywords.slice(0, 4).map((k) => (
-              <span
-                key={k}
-                className="rounded-sm bg-paper px-1.5 py-0.5 text-[11px] text-muted-jeju"
-              >
-                #{k}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {/* 하단 중개사 + 영상/찜 */}
-        <div className="mt-auto flex items-center justify-between border-t border-stone/40 pt-3 text-[11px] text-muted-foreground">
-          <div className="flex min-w-0 items-center gap-1">
-            <span className="truncate">
-              {listing.agent?.channelName ?? "중개사 미상"}
-            </span>
-            {listing.agent?.verified ? (
-              <BadgeCheck
-                className="size-3.5 shrink-0 text-sea"
-                aria-label="검증된 중개사"
-              />
-            ) : null}
-          </div>
-          <span>{formatRelativeTime(listing.publishedAt2 ?? listing.publishedAt)}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="flex-1 text-sea hover:bg-sea/10 hover:text-sea"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(listing.id);
-            }}
-          >
-            <PlayCircle className="size-4" aria-hidden="true" />
-            영상 보기
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
-            aria-label={favState ? "찜 해제" : "찜하기"}
-            aria-pressed={favState}
-            onClick={handleFav}
-            disabled={favBusy}
-            className={cn(
-              "size-9 shrink-0 border-stone/60",
-              favState
-                ? "border-tangerine text-tangerine hover:bg-tangerine/10"
-                : "text-muted-foreground",
-            )}
-          >
-            <Heart
-              className={cn("size-4", favState && "fill-current")}
-              aria-hidden="true"
-            />
-          </Button>
+          <span className="ml-auto">
+            {formatRelativeTime(listing.publishedAt2 ?? listing.publishedAt)}
+          </span>
         </div>
       </div>
     </motion.article>
@@ -262,14 +189,10 @@ export function ListingCardSkeleton() {
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-stone/60 bg-card">
       <Skeleton className="aspect-video w-full rounded-none" />
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-5 w-1/2" />
+      <div className="space-y-2 p-2.5">
+        <Skeleton className="h-3.5 w-5/6" />
+        <Skeleton className="h-4 w-1/2" />
         <Skeleton className="h-3 w-2/3" />
-        <div className="flex gap-2">
-          <Skeleton className="h-8 flex-1" />
-          <Skeleton className="size-8" />
-        </div>
       </div>
     </div>
   );

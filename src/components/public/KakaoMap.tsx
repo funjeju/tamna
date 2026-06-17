@@ -14,8 +14,9 @@ interface KakaoMapProps {
   className?: string;
 }
 
-const KAKAO_KEY =
-  process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
+const KAKAO_KEY = (
+  process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? process.env.NEXT_PUBLIC_KAKAO_MAP_KEY
+)?.replace(/^﻿/, "").trim();
 const JEJU_CENTER = { lat: 33.38, lng: 126.55 };
 
 declare global {

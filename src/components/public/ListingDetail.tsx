@@ -30,12 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import type { Listing } from "@/lib/types";
-import {
-  HALLASAN,
-  JEJU_OUTLINE_PATH,
-  latLngToSvg,
-  PROPERTY_PIN,
-} from "@/lib/regions";
+import { PROPERTY_PIN } from "@/lib/regions";
 import {
   formatArea,
   formatAreaM2,
@@ -47,6 +42,7 @@ import {
   toggleFavorite,
 } from "@/lib/public/format";
 import { cn } from "@/lib/utils";
+import { KakaoMiniMap } from "./KakaoMiniMap";
 
 interface ListingDetailProps {
   open: boolean;
@@ -121,7 +117,7 @@ export function ListingDetail({
   if (loading || !listing) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden">
+        <DialogContent className="max-h-[90vh] w-[96vw] max-w-5xl sm:max-w-5xl overflow-hidden">
           <div className="grid gap-4 md:grid-cols-2">
             <Skeleton className="aspect-video w-full" />
             <div className="space-y-3 p-2">
@@ -140,11 +136,10 @@ export function ListingDetail({
   const just = isJustPublished(listing);
   const dropped = hasPriceDrop(listing);
   const drop = dropped ? lastPriceDrop(listing) : null;
-  const pt = listing.lat && listing.lng ? latLngToSvg(listing.lat, listing.lng) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl gap-0 overflow-y-auto p-0 scroll-thin">
+      <DialogContent className="max-h-[92vh] w-[96vw] max-w-5xl sm:max-w-5xl gap-0 overflow-y-auto p-0 scroll-thin">
         <DialogHeader className="space-y-2 border-b border-stone/40 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge
@@ -197,64 +192,48 @@ export function ListingDetail({
           </DialogDescription>
         </DialogHeader>
 
+        {/* 유튜브 — 모달 전체 폭으로 꽉 채움 */}
+        <div className="w-full bg-black">
+          <div className="relative aspect-video w-full">
+            {listing.videoId ? (
+              <iframe
+                src={`https://www.youtube.com/embed/${listing.videoId}`}
+                title={`${listing.title} 영상`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                loading="lazy"
+                className="absolute inset-0 h-full w-full"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <PlayCircle className="size-12 opacity-50" />
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="grid gap-0 md:grid-cols-2">
-          {/* 좌측 — 유튜브 임베드 */}
+          {/* 좌측 — 지도 / 안내 */}
           <div className="flex flex-col gap-2 p-5">
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-stone/60 bg-black">
-              {listing.videoId ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${listing.videoId}`}
-                  title={`${listing.title} 영상`}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                  <PlayCircle className="size-12 opacity-50" />
-                </div>
-              )}
-            </div>
             <p className="text-[10px] leading-relaxed text-muted-foreground">
               ※ 본 영상은 YouTube 공개 영상을 임베드 방식으로만 재생합니다.
               재호스팅하지 않으며, 모든 저작권은 원 채널 소유자에게 있습니다.
             </p>
 
-            {/* 미니 지도 */}
-            <div className="mt-3 overflow-hidden rounded-lg border border-stone/60 bg-gradient-to-br from-sea/5 to-paper">
-              <svg viewBox="0 0 1000 620" className="block h-44 w-full">
-                <rect x="0" y="0" width="1000" height="620" fill="#eef0ec" />
-                <path
-                  d={JEJU_OUTLINE_PATH}
-                  fill="#ffffff"
-                  stroke="#b9c2bd"
-                  strokeWidth="2"
+            {/* 미니 지도 — 카카오 */}
+            <div className="mt-3 overflow-hidden rounded-lg border border-stone/60">
+              {listing.lat && listing.lng ? (
+                <KakaoMiniMap
+                  lat={listing.lat}
+                  lng={listing.lng}
+                  color={pin.color}
+                  className="h-52 w-full"
                 />
-                <circle
-                  cx={HALLASAN.x}
-                  cy={HALLASAN.y}
-                  r={HALLASAN.r}
-                  fill="none"
-                  stroke="#5d665f"
-                  strokeOpacity="0.4"
-                  strokeWidth="1.4"
-                  strokeDasharray="3 3"
-                />
-                {pt ? (
-                  <>
-                    <circle cx={pt.x} cy={pt.y} r="18" fill={pin.color} fillOpacity="0.18" />
-                    <circle
-                      cx={pt.x}
-                      cy={pt.y}
-                      r="9"
-                      fill={pin.color}
-                      stroke="#fff"
-                      strokeWidth="2"
-                    />
-                  </>
-                ) : null}
-              </svg>
+              ) : (
+                <div className="flex h-52 w-full items-center justify-center bg-muted text-xs text-muted-foreground">
+                  위치 정보 없음
+                </div>
+              )}
               <div className="flex items-center justify-between border-t border-stone/40 bg-paper/60 px-3 py-1.5 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="size-3" aria-hidden="true" />

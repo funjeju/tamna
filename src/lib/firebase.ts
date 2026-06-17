@@ -49,7 +49,7 @@ export async function verifyUid(authHeader?: string | null): Promise<string | nu
   if (!authHeader?.startsWith("Bearer ")) return null;
   const idToken = authHeader.slice(7).trim();
   if (!idToken) return null;
-  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.replace(/^﻿/, "").trim();
   if (!key) return null;
   try {
     const res = await fetch(

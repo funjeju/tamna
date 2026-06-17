@@ -132,6 +132,13 @@ export function PublicApp() {
     [goSearch],
   );
 
+  const handleFilterSearch = useCallback(
+    (partial: Partial<ListingFilters>) => {
+      goSearch({ ...EMPTY_FILTERS, ...partial });
+    },
+    [goSearch],
+  );
+
   const handlePickTheme = useCallback(
     (t: Theme) => {
       goSearch({ ...EMPTY_FILTERS, themes: [t] });
@@ -256,6 +263,7 @@ export function PublicApp() {
             >
               <Hero
                 onSearch={handleSearchSubmit}
+                onFilterSearch={handleFilterSearch}
                 onPickTheme={handlePickTheme}
                 onOpenMap={() => goSearch(EMPTY_FILTERS)}
                 publishedCount={publishedCount}
@@ -322,8 +330,8 @@ export function PublicApp() {
               />
 
               {/* 지도 + 그리드 레이아웃 */}
-              <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-                <div className="order-2 lg:order-1">
+              <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+                <div className="order-2 lg:order-1 lg:sticky lg:top-20 lg:self-start">
                   <KakaoMap
                     listings={listings}
                     onSelectListing={handleOpenListing}
