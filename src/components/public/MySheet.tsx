@@ -39,6 +39,7 @@ import {
   toggleFavorite,
 } from "@/lib/public/format";
 import { cn } from "@/lib/utils";
+import { authHeaders } from "@/lib/authToken";
 
 export interface SavedSearchItem {
   id: string;
@@ -94,7 +95,10 @@ export function MySheet({
   const { data, isLoading, isFetching } = useQuery<{ favorites: FavoriteRow[] }>({
     queryKey: ["favorites"],
     queryFn: async () => {
-      const res = await fetch("/api/favorites", { cache: "no-store" });
+      const res = await fetch("/api/favorites", {
+        cache: "no-store",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error("favorites fetch failed");
       return res.json();
     },

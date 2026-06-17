@@ -1,5 +1,6 @@
 // TamnaIndex — 공개 사이트 공용 포맷/표현 유틸
 import type { Listing } from "@/lib/types";
+import { authHeaders } from "@/lib/authToken";
 
 /** 만원 단위 가격 → "3.2억" / "8,500만" 문자열 */
 export function formatPrice(manwon: number, fallbackText?: string): string {
@@ -78,7 +79,7 @@ export function lastPriceDrop(l: Listing): { from: number; to: number; diff: num
 export async function toggleFavorite(listingId: string, notifyPriceDrop = false) {
   const res = await fetch("/api/favorites", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ listingId, notifyPriceDrop }),
   });
   if (!res.ok) throw new Error("favorite request failed");

@@ -1,7 +1,7 @@
 "use client";
 // TamnaIndex — 공개 사이트 최상위 컴포넌트 (자체完結)
 // page.tsx에서 <PublicApp /> 단일 import로 사용.
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bookmark, Compass, Heart, Search as SearchIcon } from "lucide-react";
@@ -12,11 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import type { Listing, ListingFilters, Theme } from "@/lib/types";
 import { buildListingsQuery } from "@/lib/public/format";
+import { authHeaders } from "@/lib/authToken";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Hero } from "./Hero";
 import { ThemeCollections } from "./ThemeCollections";
 import { SearchBar } from "./SearchBar";
-import { JejuMap } from "./JejuMap";
+import { KakaoMap } from "./KakaoMap";
 import { ListingGrid } from "./ListingGrid";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { ListingDetail } from "./ListingDetail";
 import { MySheet } from "./MySheet";
 import { PublicFooter } from "./PublicFooter";
@@ -28,6 +31,13 @@ const EMPTY_FILTERS: ListingFilters = { sort: "latest", status: "published" };
 export function PublicApp() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // 로그인/로그아웃 시 내 찜 목록 갱신
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["favorites"] });
+  }, [user, queryClient]);
 
   const [view, setView] = useState<View>("home");
   const [filters, setFilters] = useState<ListingFilters>(EMPTY_FILTERS);
@@ -68,7 +78,10 @@ export function PublicApp() {
   const favQuery = useQuery<{ favorites: Listing[] }>({
     queryKey: ["favorites"],
     queryFn: async () => {
-      const res = await fetch("/api/favorites", { cache: "no-store" });
+      const res = await fetch("/api/favorites", {
+        cache: "no-store",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error("favorites fetch failed");
       return res.json();
     },
@@ -225,6 +238,7 @@ export function PublicApp() {
               <Bookmark className="size-4 text-sea" aria-hidden="true" />
               <span className="hidden sm:inline">마이</span>
             </Button>
+            <AuthButton />
           </div>
         </div>
       </header>
@@ -310,7 +324,7 @@ export function PublicApp() {
               {/* 지도 + 그리드 레이아웃 */}
               <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
                 <div className="order-2 lg:order-1">
-                  <JejuMap
+                  <KakaoMap
                     listings={listings}
                     onSelectListing={handleOpenListing}
                     highlightId={highlightId}

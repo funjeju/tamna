@@ -1,0 +1,33 @@
+﻿node.exe : <claude-code-hint v="1" type="plugin" value="vercel@claude-plugins-official" />
+위치 C:\Users\funjeju\AppData\Roaming\npm\vercel.ps1:24 문자:5
++     & "node$exe"  "$basedir/node_modules/vercel/dist/vc.js" $args
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (<claude-code-hi...ns-official" />:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Retrieving project??Resolving deployment "tamna-iota.vercel.app"
+Streaming logs for deployment dpl_DSs7bwNMMdFsFjyBXoXqiN4FwNHX starting from 14:46:16.42
+
+waiting for new logs...
+14:46:19.38  ?슟  GET  ---  tamna-iota.vercel.app  ?  /api/dashboard
+-------------------------------------------------------------------
+Failed to handle /api/dashboard Error: Failed to load external module firebase-admin-a14c8a5423a75469/auth: Error [ERR_
+REQUIRE_ESM]: require() of ES Module /var/task/node_modules/jwks-rsa/node_modules/jose/dist/webapi/index.js from /var/t
+ask/node_modules/jwks-rsa/src/utils.js not supported.
+Instead change the require of index.js in /var/task/node_modules/jwks-rsa/src/utils.js to a dynamic import() which is a
+vailable in all CommonJS modules.
+    at Context.externalImport [as y] (.next/server/chunks/[turbopack]_runtime.js:607:15)
+    at async (.next/server/chunks/[root-of-the-server]__1teu1uk._.js:1:1198)
+
+waiting for new logs...
+14:46:20.19  ?슟  GET  ---  tamna-iota.vercel.app  ?  /api/dashboard
+-------------------------------------------------------------------
+Failed to handle /api/dashboard Error: Failed to load external module firebase-admin-a14c8a5423a75469/auth: Error [ERR_
+REQUIRE_ESM]: require() of ES Module /var/task/node_modules/jwks-rsa/node_modules/jose/dist/webapi/index.js from /var/t
+ask/node_modules/jwks-rsa/src/utils.js not supported.
+Instead change the require of index.js in /var/task/node_modules/jwks-rsa/src/utils.js to a dynamic import() which is a
+vailable in all CommonJS modules.
+    at Context.externalImport [as y] (.next/server/chunks/[turbopack]_runtime.js:607:15)
+    at async (.next/server/chunks/[root-of-the-server]__1teu1uk._.js:1:1198)
+
+waiting for new logs...

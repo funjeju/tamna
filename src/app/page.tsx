@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import PublicApp from "@/components/public/PublicApp";
 import AdminApp from "@/components/admin/AdminApp";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 type Mode = "public" | "admin";
 
@@ -73,12 +74,14 @@ export default function Home() {
 
   return (
     <QueryClientProvider client={client}>
-      {mode === "public" ? (
-        <PublicApp />
-      ) : (
-        <AdminApp onExitAdmin={exitAdmin} />
-      )}
-      <ModeSwitch mode={mode} onToggle={enterAdmin} />
+      <AuthProvider>
+        {mode === "public" ? (
+          <PublicApp />
+        ) : (
+          <AdminApp onExitAdmin={exitAdmin} />
+        )}
+        <ModeSwitch mode={mode} onToggle={enterAdmin} />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
