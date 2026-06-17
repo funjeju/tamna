@@ -30,9 +30,10 @@ interface ListingCardProps {
   listing: Listing;
   onOpen: (id: string) => void;
   onFavoriteChange?: () => void;
+  onHighlight?: (id: string | null) => void;
 }
 
-export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardProps) {
+export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: ListingCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
@@ -75,6 +76,10 @@ export function ListingCard({ listing, onOpen, onFavoriteChange }: ListingCardPr
       whileHover={{ y: -3 }}
       transition={{ type: "spring", stiffness: 220, damping: 22 }}
       onClick={() => onOpen(listing.id)}
+      onMouseEnter={() => onHighlight?.(listing.id)}
+      onMouseLeave={() => onHighlight?.(null)}
+      onFocus={() => onHighlight?.(listing.id)}
+      onBlur={() => onHighlight?.(null)}
       role="button"
       tabIndex={0}
       aria-label={`${listing.title} 매물 카드, 클릭하여 상세 보기`}

@@ -55,6 +55,7 @@ export function KakaoMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
+  const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const onSelectRef = useRef(onSelectListing);
   onSelectRef.current = onSelectListing;
   const [status, setStatus] = useState<"loading" | "ready" | "nokey" | "error">(
@@ -88,6 +89,7 @@ export function KakaoMap({
 
     overlaysRef.current.forEach((o) => o.setMap(null));
     overlaysRef.current = [];
+    pinElsRef.current = new Map();
 
     const valid = listings.filter((l) => l.lat && l.lng);
     const bounds = new kakao.maps.LatLngBounds();
@@ -96,7 +98,6 @@ export function KakaoMap({
       const pos = new kakao.maps.LatLng(l.lat, l.lng);
       bounds.extend(pos);
       const pin = PROPERTY_PIN[l.propertyType] ?? PROPERTY_PIN["기타"];
-      const isHi = highlightId === l.id;
 
       const el = document.createElement("div");
       el.className = "tx-pin";
@@ -104,20 +105,13 @@ export function KakaoMap({
       el.style.cssText = [
         "transform: translate(-50%, -50%)",
         "cursor: pointer",
-        `width:${isHi ? 20 : 14}px`,
-        `height:${isHi ? 20 : 14}px`,
+        "width:14px",
+        "height:14px",
         "border-radius:9999px",
         `background:${pin.color}`,
-        `border:2px solid ${isHi ? "#176b6b" : "#fff"}`,
-        `box-shadow:0 1px 4px rgba(0,0,0,.35)${isHi ? ",0 0 0 4px rgba(23,107,107,.25)" : ""}`,
-        "transition:transform .12s",
+        "border:2px solid #fff",
+        "box-shadow:0 1px 4px rgba(0,0,0,.35)",
       ].join(";");
-      el.addEventListener("mouseenter", () => {
-        el.style.transform = "translate(-50%, -50%) scale(1.25)";
-      });
-      el.addEventListener("mouseleave", () => {
-        el.style.transform = "translate(-50%, -50%)";
-      });
       el.addEventListener("click", () => onSelectRef.current(l.id));
 
       const overlay = new kakao.maps.CustomOverlay({
@@ -125,27 +119,24 @@ export function KakaoMap({
         content: el,
         yAnchor: 0.5,
         xAnchor: 0.5,
-        zIndex: isHi ? 10 : 1,
+        zIndex: 1,
       });
       overlay.setMap(map);
       overlaysRef.current.push(overlay);
+      pinElsRef.current.set(l.id, el);
     }
 
-    // 최초/목록 변경 시 전체 핀에 맞춰 줌 (강조 이동은 별도 effect)
-    if (valid.length > 0 && !highlightId) {
+    if (valid.length > 0) {
       map.setBounds(bounds, 40, 40, 40, 40);
     }
-  }, [listings, status, highlightId]);
+  }, [listings, status]);
 
-  // 강조 매물로 부드럽게 이동
+  // 강조(카드 hover) — 해당 핀만 깜박임 토글 (지도 이동 없음)
   useEffect(() => {
-    if (status !== "ready" || !mapRef.current || !highlightId) return;
-    const target = listings.find((l) => l.id === highlightId);
-    if (target?.lat && target?.lng) {
-      const kakao = window.kakao;
-      mapRef.current.panTo(new kakao.maps.LatLng(target.lat, target.lng));
+    for (const [id, el] of pinElsRef.current) {
+      el.classList.toggle("tx-pin-pulse", id === highlightId);
     }
-  }, [highlightId, status, listings]);
+  }, [highlightId]);
 
   return (
     <div

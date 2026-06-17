@@ -13,6 +13,7 @@ interface ListingGridProps {
   onFavoriteChange?: () => void;
   onReset?: () => void;
   onPickTheme?: (t: Theme) => void;
+  onHighlight?: (id: string | null) => void;
   emptyTitle?: string;
 }
 
@@ -23,6 +24,7 @@ export function ListingGrid({
   onFavoriteChange,
   onReset,
   onPickTheme,
+  onHighlight,
   emptyTitle,
 }: ListingGridProps) {
   if (loading) {
@@ -75,13 +77,14 @@ export function ListingGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {listings.map((l) => (
         <ListingCard
           key={l.id}
           listing={l}
           onOpen={onOpen}
           onFavoriteChange={onFavoriteChange}
+          onHighlight={onHighlight}
         />
       ))}
     </div>

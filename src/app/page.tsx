@@ -3,7 +3,7 @@
 // TamnaIndex — 메인 페이지 (단일 라우트 /)
 // 공개 서비스(PublicApp) + 운영자 콘솔(AdminApp)을 모드 전환으로 제공.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ShieldCheck, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/tooltip";
 import PublicApp from "@/components/public/PublicApp";
 import AdminApp from "@/components/admin/AdminApp";
-import { AuthProvider } from "@/components/auth/AuthProvider";
+import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
+import { useToast } from "@/hooks/use-toast";
 
 type Mode = "public" | "admin";
 
@@ -26,9 +27,16 @@ function ModeSwitch({
   mode: Mode;
   onToggle: () => void;
 }) {
+  const { user, isAdmin, loading, signInGoogle } = useAuth();
+  const { toast } = useToast();
+
   // 운영자 모드일 땐 AdminApp 헤더에 별도 "공개 사이트 보기" 버튼이 있으므로
   // 이 플로팅 버튼은 공개 모드에서만 노출.
   if (mode === "admin") return null;
+
+  // 운영자 권한이 없으면 버튼 자체를 숨김 (admin 만 노출)
+  if (loading || !user || !isAdmin) return null;
+
   return (
     <div className="fixed bottom-4 right-4 z-[60] print:hidden">
       <TooltipProvider delayDuration={200}>
@@ -46,12 +54,22 @@ function ModeSwitch({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            수집 · 검수 · 게시 · 중개사 관리
+            수집 · 검수 · 게시 · 회원 관리
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
   );
+}
+
+// 관리자만 AdminApp 렌더 (직접 진입 방어)
+function AdminGate({ onExitAdmin }: { onExitAdmin: () => void }) {
+  const { isAdmin, loading } = useAuth();
+  useEffect(() => {
+    if (!loading && !isAdmin) onExitAdmin();
+  }, [loading, isAdmin, onExitAdmin]);
+  if (loading || !isAdmin) return null;
+  return <AdminApp onExitAdmin={onExitAdmin} />;
 }
 
 export default function Home() {
@@ -78,7 +96,7 @@ export default function Home() {
         {mode === "public" ? (
           <PublicApp />
         ) : (
-          <AdminApp onExitAdmin={exitAdmin} />
+          <AdminGate onExitAdmin={exitAdmin} />
         )}
         <ModeSwitch mode={mode} onToggle={enterAdmin} />
       </AuthProvider>

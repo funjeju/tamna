@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  Users,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { ReviewQueue } from "./ReviewQueue";
 import { PublishManagement } from "./PublishManagement";
 import { AgentManagement } from "./AgentManagement";
 import { OptOutList } from "./OptOutList";
+import { MemberManagement } from "./MemberManagement";
 import { AdminFooter } from "./AdminFooter";
 
 export type AdminSection =
@@ -34,6 +36,7 @@ export type AdminSection =
   | "review"
   | "published"
   | "agents"
+  | "members"
   | "optout";
 
 interface AdminAppProps {
@@ -54,6 +57,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "review", label: "검수큐", icon: ClipboardList, desc: "드래프트 검수" },
   { id: "published", label: "게시관리", icon: Eye, desc: "게시중·반려·옵트아웃" },
   { id: "agents", label: "중개사관리", icon: Building2, desc: "검증·플랜·옵트아웃" },
+  { id: "members", label: "회원관리", icon: Users, desc: "운영자 권한 지정" },
   { id: "optout", label: "설정·옵트아웃", icon: Ban, desc: "옵트아웃 리스트" },
 ];
 
@@ -63,6 +67,7 @@ const SECTION_TITLES: Record<AdminSection, { title: string; sub: string }> = {
   review: { title: "검수 큐", sub: "AI 구조화 드래프트 검수" },
   published: { title: "게시 관리", sub: "게시중·반려·옵트아웃 통합 관리" },
   agents: { title: "중개사 관리", sub: "검증·플랜·옵트아웃" },
+  members: { title: "회원 관리", sub: "회원 목록·운영자 권한 지정" },
   optout: { title: "옵트아웃 설정", sub: "중개사·소유자 요청 노출 중단" },
 };
 
@@ -186,6 +191,7 @@ export function AdminApp({ onExitAdmin }: AdminAppProps) {
             )}
             {section === "published" && <PublishManagement />}
             {section === "agents" && <AgentManagement />}
+            {section === "members" && <MemberManagement />}
             {section === "optout" && <OptOutList />}
           </div>
         </main>

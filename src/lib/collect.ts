@@ -11,7 +11,9 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const KAKAO_REST = process.env.KAKAO_REST_KEY;
 const SOCIALKIT = process.env.SOCIALKIT_ACCESS_KEY;
 
-const MAX_VIDEOS = 10; // Vercel Pro (maxDuration 300s) 기준
+const CANDIDATE_CAP = 120; // 검색으로 수집할 후보 영상 최대 수
+const MAX_PROCESS = 20; // 한 번에 AI 구조화/저장할 신규 매물 수 (Vercel Pro 300s 고려)
+const PAGES_PER_QUERY = 2; // 쿼리당 페이지네이션 깊이
 
 // 지정 시간 내 응답 없으면 중단하는 fetch
 async function fetchT(url: string, ms: number, init?: RequestInit) {
@@ -52,49 +54,93 @@ interface Structured {
   confidence: number;
 }
 
-// ── 1) YouTube 검색 ──
-async function youtubeSearch(
+// ── 1) YouTube 검색 (쿼리 다변화 + 페이지네이션) ──
+// 단일 쿼리/10건만 보면 매번 같은 영상만 잡히므로,
+// 지역·유형별 쿼리 여러 개를 페이지 단위로 깊게 훑어 후보를 넓힌다.
+function buildQueries(keyword: string, region: string): string[] {
+  const kw = (keyword || "").trim();
+  const base = region && region !== "전체" ? `제주 ${region}` : "제주";
+  const qs = [
+    `${base} 부동산 ${kw}`.trim(),
+    `${base} 매물`,
+    `${base} 단독주택 매매`,
+    `${base} 전원주택`,
+    `${base} 토지 매매`,
+    `${base} 상가 매매`,
+    `${base} 빌라 매매`,
+  ];
+  return [...new Set(qs.filter(Boolean))];
+}
+
+async function searchPage(
+  q: string,
+  publishedAfter: string,
+  order: string,
+  pageToken?: string,
+): Promise<{ ids: string[]; next?: string }> {
+  let url =
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=${order}` +
+    `&maxResults=50&regionCode=KR&relevanceLanguage=ko` +
+    `&publishedAfter=${encodeURIComponent(publishedAfter)}` +
+    `&q=${encodeURIComponent(q)}&key=${YT_KEY}`;
+  if (pageToken) url += `&pageToken=${pageToken}`;
+  const res = await fetch(url);
+  if (!res.ok) return { ids: [] };
+  const data = await res.json();
+  const ids = (data.items || []).map((i: any) => i.id?.videoId).filter(Boolean);
+  return { ids, next: data.nextPageToken };
+}
+
+async function fetchDetails(ids: string[]): Promise<YtVideo[]> {
+  const out: YtVideo[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${chunk.join(",")}&key=${YT_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) continue;
+    const data = await res.json();
+    for (const it of data.items || []) {
+      out.push({
+        videoId: it.id,
+        title: it.snippet?.title ?? "",
+        description: it.snippet?.description ?? "",
+        channelId: it.snippet?.channelId ?? "",
+        channelTitle: it.snippet?.channelTitle ?? "",
+        publishedAt: it.snippet?.publishedAt ?? new Date().toISOString(),
+        thumbnailUrl:
+          it.snippet?.thumbnails?.high?.url ??
+          it.snippet?.thumbnails?.medium?.url ??
+          `https://i.ytimg.com/vi/${it.id}/hqdefault.jpg`,
+      });
+    }
+  }
+  return out;
+}
+
+async function searchCandidates(
   keyword: string,
   region: string,
   periodDays: number,
 ): Promise<YtVideo[]> {
   if (!YT_KEY) throw new Error("YOUTUBE_API_KEY 미설정");
-  const publishedAfter = new Date(
-    Date.now() - periodDays * 86400000,
-  ).toISOString();
-  const qParts = ["제주", region && region !== "전체" ? region : "", "부동산", keyword]
-    .filter(Boolean)
-    .join(" ");
-  const searchUrl =
-    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=date` +
-    `&maxResults=${MAX_VIDEOS}&regionCode=KR&relevanceLanguage=ko` +
-    `&publishedAfter=${encodeURIComponent(publishedAfter)}` +
-    `&q=${encodeURIComponent(qParts)}&key=${YT_KEY}`;
-  const res = await fetch(searchUrl);
-  if (!res.ok) throw new Error(`YouTube 검색 실패 ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  const ids: string[] = (data.items || [])
-    .map((i: any) => i.id?.videoId)
-    .filter(Boolean);
-  if (ids.length === 0) return [];
+  const publishedAfter = new Date(Date.now() - periodDays * 86400000).toISOString();
+  const queries = buildQueries(keyword, region);
+  const idSet = new Set<string>();
 
-  // 상세(설명 전문) 조회
-  const detailUrl =
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${ids.join(",")}&key=${YT_KEY}`;
-  const dRes = await fetch(detailUrl);
-  const dData = await dRes.json();
-  return (dData.items || []).map((it: any): YtVideo => ({
-    videoId: it.id,
-    title: it.snippet?.title ?? "",
-    description: it.snippet?.description ?? "",
-    channelId: it.snippet?.channelId ?? "",
-    channelTitle: it.snippet?.channelTitle ?? "",
-    publishedAt: it.snippet?.publishedAt ?? new Date().toISOString(),
-    thumbnailUrl:
-      it.snippet?.thumbnails?.high?.url ??
-      it.snippet?.thumbnails?.medium?.url ??
-      `https://i.ytimg.com/vi/${it.id}/hqdefault.jpg`,
-  }));
+  for (const q of queries) {
+    if (idSet.size >= CANDIDATE_CAP) break;
+    let token: string | undefined;
+    for (let p = 0; p < PAGES_PER_QUERY && idSet.size < CANDIDATE_CAP; p++) {
+      // relevance 로 깊게, 첫 쿼리는 최신순도 한 번 섞음
+      const order = p === 0 ? "relevance" : "date";
+      const { ids, next } = await searchPage(q, publishedAfter, order, token);
+      ids.forEach((id) => idSet.add(id));
+      if (!next) break;
+      token = next;
+    }
+  }
+
+  return fetchDetails([...idSet].slice(0, CANDIDATE_CAP));
 }
 
 // ── 2) 자막 (SocialKit, 실패 시 빈 문자열) ──
@@ -327,21 +373,32 @@ export async function runCollection(opts: {
   let processed = 0;
   let failed = 0;
 
-  const videos = await youtubeSearch(opts.keyword, opts.region, opts.periodDays);
+  const candidates = await searchCandidates(opts.keyword, opts.region, opts.periodDays);
   const existing = await loadKeySet("listings", "videoId");
   const optOuts = await loadKeySet("optOuts", "key");
 
-  for (const v of videos) {
-    try {
-      if (existing.has(v.videoId)) {
-        items.push({ videoId: v.videoId, step: "dedupe", source: "youtube", status: "skip", detail: "이미 수집됨" });
-        continue;
-      }
-      if (optOuts.has(v.videoId) || optOuts.has(v.channelId)) {
-        items.push({ videoId: v.videoId, step: "optout", source: "youtube", status: "skip", detail: "옵트아웃 대상" });
-        continue;
-      }
+  // 신규(미수집·비옵트아웃)만 선별 → 같은 영상 재처리 방지
+  const fresh = candidates.filter(
+    (v) =>
+      !existing.has(v.videoId) &&
+      !optOuts.has(v.videoId) &&
+      !optOuts.has(v.channelId),
+  );
+  const dupCount = candidates.length - fresh.length;
+  if (dupCount > 0) {
+    items.push({
+      videoId: `${dupCount}건`,
+      step: "dedupe",
+      source: "youtube",
+      status: "skip",
+      detail: `이미 수집/옵트아웃이라 건너뜀 (후보 ${candidates.length}건 중)`,
+    });
+  }
 
+  const toProcess = fresh.slice(0, MAX_PROCESS);
+
+  for (const v of toProcess) {
+    try {
       const transcript = await getTranscript(v.videoId);
       const s = await structure(v, transcript);
       if (!s || !s.isListing) {
@@ -399,7 +456,7 @@ export async function runCollection(opts: {
   const job = {
     trigger: opts.trigger || "manual",
     region: opts.region || "전체",
-    found: videos.length,
+    found: candidates.length,
     processed,
     failed,
     items: JSON.stringify(items),

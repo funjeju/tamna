@@ -10,6 +10,7 @@ import { THEMES } from "@/lib/types";
 interface ThemeCollectionsProps {
   listings: Listing[];
   onPick: (t: Theme) => void;
+  loading?: boolean;
 }
 
 interface ThemeMeta {
@@ -79,7 +80,7 @@ const THEME_META: ThemeMeta[] = [
   },
 ];
 
-export function ThemeCollections({ listings, onPick }: ThemeCollectionsProps) {
+export function ThemeCollections({ listings, onPick, loading }: ThemeCollectionsProps) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
       <header className="mb-6 flex items-end justify-between">
@@ -97,6 +98,22 @@ export function ThemeCollections({ listings, onPick }: ThemeCollectionsProps) {
         </Badge>
       </header>
 
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {THEME_META.map((meta) => (
+            <div
+              key={meta.title}
+              className="flex flex-col overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm"
+            >
+              <div className="aspect-[16/9] w-full animate-pulse bg-muted" />
+              <div className="space-y-2 p-4">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {THEME_META.map((meta, idx) => {
           const items = listings.filter((l) => l.themes.includes(meta.title));
@@ -199,6 +216,7 @@ export function ThemeCollections({ listings, onPick }: ThemeCollectionsProps) {
           );
         })}
       </div>
+      )}
     </section>
   );
 }

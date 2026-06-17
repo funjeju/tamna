@@ -274,6 +274,7 @@ export function PublicApp() {
               <ThemeCollections
                 listings={listings}
                 onPick={handlePickTheme}
+                loading={listingsQuery.isLoading}
               />
 
               {/* 최근 매물 미리보기 */}
@@ -347,6 +348,7 @@ export function PublicApp() {
                     onFavoriteChange={handleFavoriteChange}
                     onReset={handleReset}
                     onPickTheme={handlePickTheme}
+                    onHighlight={setHighlightId}
                   />
                 </div>
               </div>

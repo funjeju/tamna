@@ -229,16 +229,35 @@ export function CollectionConsole({ onJobCompleted }: CollectionConsoleProps) {
 
     toast({
       title: "수집 시작",
-      description: `지역: ${regionLabel} · 키워드: ${kw}`,
+      description: `지역: ${regionLabel} · 키워드: ${kw} — 유튜브에서 실제 수집 중 (수십 초 소요)`,
     });
 
-    startSimulation(6, 1, kw);
-
-    await runMutation.mutateAsync({
-      region: regionLabel,
-      periodDays: period,
-      keyword: kw,
+    // 파이프라인 단계 표시기 애니메이션 (시각용)
+    setLogEntries([]);
+    setLogRunning(true);
+    setCurrentStepIdx(0);
+    clearTimers();
+    PIPELINE_STEPS.forEach((_, idx) => {
+      const t = setTimeout(
+        () => setCurrentStepIdx(Math.min(idx, PIPELINE_STEPS.length - 1)),
+        idx * 500,
+      );
+      timersRef.current.push(t);
     });
+
+    try {
+      // 실제 수집 — 결과 items 를 그대로 로그에 표시
+      const data = await runMutation.mutateAsync({
+        region: regionLabel,
+        periodDays: period,
+        keyword: kw,
+      });
+      clearTimers();
+      setCurrentStepIdx(PIPELINE_STEPS.length - 1);
+      setLogEntries((data.job.items as LogEntry[]) ?? []);
+    } finally {
+      setLogRunning(false);
+    }
   };
 
   const handleRetryStep = (entry: LogEntry) => {
