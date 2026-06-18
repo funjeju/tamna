@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowUpDown,
   Ban,
   CheckCircle2,
   Coins,
@@ -72,6 +73,7 @@ export function PublishManagement() {
   const [search, setSearch] = useState("");
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("date_desc");
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
@@ -98,12 +100,38 @@ export function PublishManagement() {
 
   const filtered = useMemo(() => {
     const list = data?.listings ?? [];
-    return list.filter((l) => {
+    const f = list.filter((l) => {
       if (propertyFilter !== "all" && l.propertyType !== propertyFilter) return false;
       if (regionFilter !== "all" && l.region !== regionFilter) return false;
       return true;
     });
-  }, [data, propertyFilter, regionFilter]);
+    const ts = (s: string | null | undefined) => (s ? new Date(s).getTime() : 0);
+    const arr = [...f];
+    switch (sortBy) {
+      case "date_asc":
+        arr.sort((a, b) => ts(a.publishedAt2 ?? a.publishedAt) - ts(b.publishedAt2 ?? b.publishedAt));
+        break;
+      case "price_desc":
+        arr.sort((a, b) => (b.priceManwon || 0) - (a.priceManwon || 0));
+        break;
+      case "price_asc":
+        arr.sort((a, b) => (a.priceManwon || 0) - (b.priceManwon || 0));
+        break;
+      case "agent":
+        arr.sort((a, b) =>
+          (a.agent?.channelName ?? "").localeCompare(b.agent?.channelName ?? "", "ko"),
+        );
+        break;
+      case "type":
+        arr.sort((a, b) => a.propertyType.localeCompare(b.propertyType, "ko"));
+        break;
+      case "date_desc":
+      default:
+        arr.sort((a, b) => ts(b.publishedAt2 ?? b.publishedAt) - ts(a.publishedAt2 ?? a.publishedAt));
+        break;
+    }
+    return arr;
+  }, [data, propertyFilter, regionFilter, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages - 1);
@@ -143,7 +171,7 @@ export function PublishManagement() {
         body: JSON.stringify({
           action: "update_price",
           priceManwon: manwon,
-          priceText: fmtManwon(manon),
+          priceText: fmtManwon(manwon),
         }),
       });
       if (!res.ok) throw new Error("price update failed");
@@ -287,6 +315,20 @@ export function PublishManagement() {
               {REGION_NAMES.map((r) => (
                 <SelectItem key={r} value={r}>{r}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setPage(0); }}>
+            <SelectTrigger className="w-[150px]">
+              <ArrowUpDown className="size-3.5 mr-1" />
+              <SelectValue placeholder="정렬" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date_desc">게시일 ↓ 최신순</SelectItem>
+              <SelectItem value="date_asc">게시일 ↑ 오래된순</SelectItem>
+              <SelectItem value="price_desc">가격 ↓ 높은순</SelectItem>
+              <SelectItem value="price_asc">가격 ↑ 낮은순</SelectItem>
+              <SelectItem value="agent">중개사명순</SelectItem>
+              <SelectItem value="type">유형별</SelectItem>
             </SelectContent>
           </Select>
           <Badge variant="outline" className="font-mono">

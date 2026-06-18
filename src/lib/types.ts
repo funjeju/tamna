@@ -73,6 +73,9 @@ export interface Listing {
   takedownAt: string | null;
   createdAt: string;
   updatedAt: string;
+  sourceType?: "youtube" | "blog";
+  images?: string[];
+  sourceUrl?: string;
   agent?: Agent | null;
   isFavorited?: boolean;
 }

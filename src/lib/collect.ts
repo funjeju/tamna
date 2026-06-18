@@ -12,7 +12,7 @@ const KAKAO_REST = process.env.KAKAO_REST_KEY;
 const SOCIALKIT = process.env.SOCIALKIT_ACCESS_KEY;
 
 const CANDIDATE_CAP = 120; // 검색으로 수집할 후보 영상 최대 수
-const MAX_PROCESS = 20; // 한 번에 AI 구조화/저장할 신규 매물 수 (Vercel Pro 300s 고려)
+const MAX_PROCESS = 25; // 한 번에 AI 구조화/저장할 신규 매물 수 (Vercel Pro 300s 고려)
 const PAGES_PER_QUERY = 2; // 쿼리당 페이지네이션 깊이
 
 // 지정 시간 내 응답 없으면 중단하는 fetch
@@ -143,17 +143,22 @@ async function searchCandidates(
   return fetchDetails([...idSet].slice(0, CANDIDATE_CAP));
 }
 
+// 자막 사용 여부 — 현재 보류(제목+설명만으로 구조화). 재개하려면 true.
+const USE_TRANSCRIPT = false;
+
 // ── 2) 자막 (SocialKit, 실패 시 빈 문자열) ──
 async function getTranscript(videoId: string): Promise<string> {
-  if (!SOCIALKIT) return "";
+  if (!USE_TRANSCRIPT || !SOCIALKIT) return "";
   try {
-    const url = `https://api.socialkit.dev/youtube/transcript?access_key=${SOCIALKIT}&url=https://www.youtube.com/watch?v=${videoId}`;
-    const res = await fetchT(url, 8000);
+    const videoUrl = encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
+    const url = `https://api.socialkit.dev/youtube/transcript?access_key=${SOCIALKIT}&video_url=${videoUrl}`;
+    const res = await fetchT(url, 10000);
     if (!res.ok) return "";
     const data = await res.json();
     const t =
       data?.data?.transcript ??
       data?.transcript ??
+      data?.data?.text ??
       (Array.isArray(data?.data?.segments)
         ? data.data.segments.map((s: any) => s.text).join(" ")
         : "");
@@ -188,15 +193,30 @@ async function structure(v: YtVideo, transcript: string): Promise<Structured | n
 {"isListing":bool,"propertyType":str,"dealType":str,"priceManwon":int,"priceText":str,"areaM2":number|null,"areaPyeong":number|null,"zoning":str|null,"addressText":str,"region":str,"summary":str,"highlights":[str],"keywords":[str],"themes":[str],"confidence":number}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
   });
-  if (!res.ok) throw new Error(`Gemini 실패 ${res.status}: ${await res.text()}`);
+
+  // 과부하(503)/레이트리밋(429)/일시오류(500)는 backoff 재시도
+  let res: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (res.ok) break;
+    if ([429, 500, 503].includes(res.status)) {
+      lastErr = `${res.status}`;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 800));
+      continue;
+    }
+    throw new Error(`Gemini 실패 ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  }
+  if (!res || !res.ok)
+    throw new Error(`Gemini 과부하 재시도 실패 (${lastErr})`);
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) return null;

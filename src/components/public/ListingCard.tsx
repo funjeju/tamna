@@ -8,6 +8,8 @@ import {
   BadgeCheck,
   TrendingDown,
   Radio,
+  Clock,
+  BookOpen,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +91,12 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
           onOpen(listing.id);
         }
       }}
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sea/60"
+      className={cn(
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sea/60",
+        listing.sourceType === "blog"
+          ? "border-l-[3px] border-l-emerald-500 border-stone/60"
+          : "border-l-[3px] border-l-red-500 border-stone/60",
+      )}
     >
       {/* 썸네일 16:9 */}
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
@@ -144,13 +151,33 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
           <Heart className={cn("size-4", favState && "fill-current")} aria-hidden="true" />
         </button>
 
-        {/* 좌하단 방금 게시 */}
+        {/* 좌하단 소스 배지 or 방금 게시 */}
         {just ? (
           <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-basalt/85 px-2 py-0.5 text-[10px] font-medium text-paper backdrop-blur">
             <Radio className="size-3 text-tangerine" aria-hidden="true" />
             방금 게시
           </div>
-        ) : null}
+        ) : (
+          <div
+            className={cn(
+              "absolute bottom-2 left-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur",
+              listing.sourceType === "blog" ? "bg-emerald-600/90" : "bg-red-600/90",
+            )}
+          >
+            {listing.sourceType === "blog" ? (
+              <BookOpen className="size-3" aria-hidden="true" />
+            ) : (
+              <PlayCircle className="size-3" aria-hidden="true" />
+            )}
+            {listing.sourceType === "blog" ? "블로그" : "유튜브"}
+          </div>
+        )}
+
+        {/* 우하단 유튜브 업로드 경과 시간 (강조) */}
+        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-basalt/85 px-2 py-0.5 text-[11px] font-semibold text-paper backdrop-blur">
+          <Clock className="size-3 text-sea-foreground" aria-hidden="true" />
+          {formatRelativeTime(listing.publishedAt)}
+        </div>
       </div>
 
       {/* 본문 — 최소 정보, 컴팩트 */}
@@ -181,9 +208,11 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
           {listing.agent?.verified ? (
             <BadgeCheck className="size-3 text-sea" aria-label="검증된 중개사" />
           ) : null}
-          <span className="ml-auto">
-            {formatRelativeTime(listing.publishedAt2 ?? listing.publishedAt)}
-          </span>
+          {listing.agent?.channelName ? (
+            <span className="ml-auto truncate text-muted-foreground/80">
+              {listing.agent.channelName}
+            </span>
+          ) : null}
         </div>
       </div>
     </motion.article>

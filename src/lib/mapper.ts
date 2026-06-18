@@ -57,6 +57,9 @@ export function mapListing(
           createdAt: row.agent.createdAt.toISOString(),
         }
       : null,
+    sourceType: ((row as any).sourceType as ListingType["sourceType"]) ?? "youtube",
+    images: safeParse<string[]>((row as any).images ?? null, []),
+    sourceUrl: (row as any).sourceUrl ?? row.videoUrl,
     isFavorited: favSet ? favSet.has(row.id) : false,
   };
 }

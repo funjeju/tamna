@@ -25,7 +25,8 @@ export async function POST(
 
   if (action === "approve") {
     const gate = canPublish(row);
-    if (!gate.ok) {
+    // force=true 이면 게이트(중개사 검증·가격·면적·주소·신뢰도) 무시하고 강제 게시
+    if (!gate.ok && !body.force) {
       return NextResponse.json(
         { error: "게시 불가", reasons: gate.reasons },
         { status: 400 },

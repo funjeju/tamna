@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -63,6 +64,7 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [batchOpen, setBatchOpen] = useState<null | "approve" | "reject">(null);
+  const [forcePublish, setForcePublish] = useState(false);
 
   // 드래프트 매물 + 에러 매물 (재시도 대상)
   const { data, isLoading, isFetching } = useQuery<{ listings: Listing[]; total: number }>({
@@ -99,13 +101,21 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
 
   // 일괄 승인/반려 mutation
   const batchMutation = useMutation({
-    mutationFn: async ({ ids, action }: { ids: string[]; action: "approve" | "reject" }) => {
+    mutationFn: async ({
+      ids,
+      action,
+      force,
+    }: {
+      ids: string[];
+      action: "approve" | "reject";
+      force?: boolean;
+    }) => {
       const results = await Promise.allSettled(
         ids.map(async (id) => {
           const res = await fetch(`/api/listings/${id}/action`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action }),
+            body: JSON.stringify({ action, force }),
           });
           if (!res.ok) {
             const d = await res.json().catch(() => ({}));
@@ -156,7 +166,9 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
     await batchMutation.mutateAsync({
       ids: Array.from(checked),
       action: batchOpen,
+      force: batchOpen === "approve" ? forcePublish : false,
     });
+    setForcePublish(false);
   };
 
   const checkedCount = checked.size;
@@ -333,10 +345,23 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {batchOpen === "approve"
-                ? `선택한 ${checkedCount}건을 게시합니다. 게시 게이트 미충족 건은 자동 실패합니다.`
+                ? forcePublish
+                  ? `선택한 ${checkedCount}건을 게이트 무시하고 강제 게시합니다.`
+                  : `선택한 ${checkedCount}건을 게시합니다. 게시 게이트 미충족 건은 자동 실패합니다.`
                 : `선택한 ${checkedCount}건을 반려합니다. 복구하려면 다시 검수 큐로 이동해야 합니다.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {batchOpen === "approve" ? (
+            <label className="flex items-center justify-between rounded-md border border-stone/50 bg-paper/40 px-3 py-2">
+              <span className="text-sm">
+                <span className="font-medium text-basalt">게이트 무시(강제 게시)</span>
+                <span className="block text-xs text-muted-foreground">
+                  중개사 미검증·가격/면적/주소 누락이어도 그대로 게시
+                </span>
+              </span>
+              <Switch checked={forcePublish} onCheckedChange={setForcePublish} />
+            </label>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction
