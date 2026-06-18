@@ -146,6 +146,29 @@ async function searchCandidates(
 // 자막 사용 여부 — 현재 보류(제목+설명만으로 구조화). 재개하려면 true.
 const USE_TRANSCRIPT = false;
 
+// ── 2-a) 고정댓글 (핀된 댓글 1개) ──
+async function getPinnedComment(videoId: string): Promise<string> {
+  if (!YT_KEY) return "";
+  try {
+    const url =
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet` +
+      `&videoId=${videoId}&maxResults=20&key=${YT_KEY}`;
+    const res = await fetchT(url, 8000);
+    if (!res.ok) return "";
+    const data = await res.json();
+    const pinned = (data.items || []).find(
+      (it: any) => it.snippet?.topLevelComment?.snippet?.likeCount >= 0 &&
+        it.snippet?.canReply !== undefined,
+    );
+    // 가장 상단 댓글(핀 여부와 무관하게 상위 댓글이 주로 중개사 정보)
+    const top = (data.items || [])[0];
+    const text = top?.snippet?.topLevelComment?.snippet?.textDisplay ?? "";
+    return text.slice(0, 1000);
+  } catch {
+    return "";
+  }
+}
+
 // ── 2) 자막 (SocialKit, 실패 시 빈 문자열) ──
 async function getTranscript(videoId: string): Promise<string> {
   if (!USE_TRANSCRIPT || !SOCIALKIT) return "";
@@ -177,6 +200,7 @@ async function structure(v: YtVideo, transcript: string): Promise<Structured | n
 [제목] ${v.title}
 [설명] ${v.description?.slice(0, 2500)}
 [자막] ${transcript?.slice(0, 3000)}
+[상단댓글] ${(v as any).pinnedComment ?? ""}
 
 규칙:
 - 제주도 실제 부동산 매물 소개 영상이 아니면 isListing=false 로만 응답.
@@ -419,8 +443,12 @@ export async function runCollection(opts: {
 
   for (const v of toProcess) {
     try {
-      const transcript = await getTranscript(v.videoId);
-      const s = await structure(v, transcript);
+      const [transcript, pinnedComment] = await Promise.all([
+        getTranscript(v.videoId),
+        getPinnedComment(v.videoId),
+      ]);
+      const vWithComment = { ...v, pinnedComment };
+      const s = await structure(vWithComment as any, transcript);
       if (!s || !s.isListing) {
         items.push({ videoId: v.videoId, step: "structuring", source: "ai", status: "skip", detail: "매물 영상 아님" });
         continue;

@@ -28,6 +28,7 @@ import { PublishManagement } from "./PublishManagement";
 import { AgentManagement } from "./AgentManagement";
 import { OptOutList } from "./OptOutList";
 import { MemberManagement } from "./MemberManagement";
+import { CronSettings } from "./CronSettings";
 import { AdminFooter } from "./AdminFooter";
 
 export type AdminSection =
@@ -37,7 +38,8 @@ export type AdminSection =
   | "published"
   | "agents"
   | "members"
-  | "optout";
+  | "optout"
+  | "cron";
 
 interface AdminAppProps {
   /** 공개 사이트로 전환 콜백 — 메인 page.tsx에서 mode 전환 */
@@ -59,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "agents", label: "중개사관리", icon: Building2, desc: "검증·플랜·옵트아웃" },
   { id: "members", label: "회원관리", icon: Users, desc: "운영자 권한 지정" },
   { id: "optout", label: "설정·옵트아웃", icon: Ban, desc: "옵트아웃 리스트" },
+  { id: "cron", label: "수집 스케줄", icon: Activity, desc: "주기·시각·즉시실행" },
 ];
 
 const SECTION_TITLES: Record<AdminSection, { title: string; sub: string }> = {
@@ -69,6 +72,7 @@ const SECTION_TITLES: Record<AdminSection, { title: string; sub: string }> = {
   agents: { title: "중개사 관리", sub: "검증·플랜·옵트아웃" },
   members: { title: "회원 관리", sub: "회원 목록·운영자 권한 지정" },
   optout: { title: "옵트아웃 설정", sub: "중개사·소유자 요청 노출 중단" },
+  cron: { title: "수집 스케줄", sub: "유튜브·블로그 주기·시각·즉시실행" },
 };
 
 export function AdminApp({ onExitAdmin }: AdminAppProps) {
@@ -193,6 +197,7 @@ export function AdminApp({ onExitAdmin }: AdminAppProps) {
             {section === "agents" && <AgentManagement />}
             {section === "members" && <MemberManagement />}
             {section === "optout" && <OptOutList />}
+            {section === "cron" && <CronSettings />}
           </div>
         </main>
       </div>

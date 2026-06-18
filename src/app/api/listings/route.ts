@@ -21,9 +21,11 @@ export async function GET(req: NextRequest) {
   const areaMax = sp.get("areaMax") ? Number(sp.get("areaMax")) : undefined;
   const sort = (sp.get("sort") || "latest") as ListingFilters["sort"];
   const limit = sp.get("limit") ? Number(sp.get("limit")) : 200;
+  const sourceType = sp.get("sourceType") || undefined;
 
   const where: any = {};
   if (status && status !== "all") where.status = status;
+  if (sourceType && sourceType !== "all") where.sourceType = sourceType;
   if (propertyTypes.length) where.propertyType = { in: propertyTypes };
   if (dealTypes.length) where.dealType = { in: dealTypes };
   if (regions.length) where.region = { in: regions };

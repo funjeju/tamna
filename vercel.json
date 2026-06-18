@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/collect-blog",
       "schedule": "0 17 */2 * *"
+    },
+    {
+      "path": "/api/cron/collect-rotation",
+      "schedule": "0 18 * * *"
     }
   ]
 }

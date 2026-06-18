@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runCollection, recheckUpdates } from "@/lib/collect";
 import { adminDb } from "@/lib/firebase";
+import { getCronConfig, shouldRun, markRan } from "@/lib/cron-config";
 
 export const maxDuration = 300; // Vercel Pro
 export const dynamic = "force-dynamic";
@@ -17,8 +18,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 딥 수집: 넓은 기간(약 4개월) + 다변화 쿼리(searchCandidates 내부 7종×2페이지)로
-  // 후보를 깊게 훑고, 신규만 검수큐(draft)로 적재.
+  // 어드민 설정 확인 — skip 가능 (force=true 쿼리 파라미터로 강제 실행)
+  const force = req.nextUrl.searchParams.get("force") === "true";
+  if (!force) {
+    const cfg = await getCronConfig();
+    if (!shouldRun(cfg.youtube)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "interval 미충족 또는 비활성", at: new Date().toISOString() });
+    }
+  }
+  await markRan("youtube");
+
   let collected: any = null;
   try {
     const job = await runCollection({

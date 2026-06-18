@@ -71,6 +71,7 @@ export function PublishManagement() {
   const { toast } = useToast();
   const [tab, setTab] = useState<StatusTab>("published");
   const [search, setSearch] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "youtube" | "blog">("all");
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date_desc");
@@ -90,8 +91,9 @@ export function PublishManagement() {
   if (search) params.set("q", search);
 
   const { data, isLoading, isFetching } = useQuery<{ listings: Listing[]; total: number }>({
-    queryKey: ["listings", "publish", tab, search],
+    queryKey: ["listings", "publish", tab, search, sourceFilter],
     queryFn: async () => {
+      if (sourceFilter !== "all") params.set("sourceType", sourceFilter);
       const res = await fetch(`/api/listings?${params.toString()}`);
       if (!res.ok) throw new Error("fetch failed");
       return res.json();
@@ -281,6 +283,26 @@ export function PublishManagement() {
               placeholder="제목/주소/지역 검색"
               className="pl-8"
             />
+          </div>
+          {/* 소스 필터 */}
+          <div className="flex rounded-md border border-stone/40 overflow-hidden text-xs shrink-0">
+            {(["all", "youtube", "blog"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setSourceFilter(s); setPage(0); }}
+                className={`px-2.5 py-1.5 transition-colors ${
+                  sourceFilter === s
+                    ? s === "youtube"
+                      ? "bg-red-500 text-white"
+                      : s === "blog"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-sea text-sea-foreground"
+                    : "text-muted-jeju hover:bg-paper"
+                }`}
+              >
+                {s === "all" ? "전체" : s === "youtube" ? "유튜브" : "블로그"}
+              </button>
+            ))}
           </div>
           <Select
             value={propertyFilter}
@@ -541,15 +563,18 @@ function PublishRow({
   onMerge: () => void;
 }) {
   return (
-    <TableRow className="hover:bg-paper/40">
+    <TableRow className={`hover:bg-paper/40 border-l-[3px] ${listing.sourceType === "blog" ? "border-l-emerald-500" : "border-l-red-500"}`}>
       <TableCell>
         <div className="flex items-center gap-2">
-          <div className="w-14 aspect-video rounded overflow-hidden bg-paper shrink-0">
+          <div className="w-14 aspect-video rounded overflow-hidden bg-paper shrink-0 relative">
             <img
               src={listing.thumbnailUrl}
               alt={listing.title}
               className="w-full h-full object-cover"
             />
+            <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] text-white py-0.5 ${listing.sourceType === "blog" ? "bg-emerald-600/80" : "bg-red-600/80"}`}>
+              {listing.sourceType === "blog" ? "블로그" : "유튜브"}
+            </span>
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium line-clamp-1">{listing.title}</p>
@@ -633,9 +658,9 @@ function PublishRow({
               </Button>
             </>
           )}
-          <Button asChild size="sm" variant="ghost" aria-label="YouTube에서 보기">
+          <Button asChild size="sm" variant="ghost" aria-label="원문 보기">
             <a
-              href={listing.videoUrl}
+              href={listing.sourceUrl ?? listing.videoUrl}
               target="_blank"
               rel="noopener noreferrer"
             >

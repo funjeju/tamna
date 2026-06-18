@@ -55,11 +55,13 @@ interface ReviewQueueProps {
 }
 
 type SortOption = "confidence_asc" | "latest" | "region";
+type SourceFilter = "all" | "youtube" | "blog";
 
 export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [sort, setSort] = useState<SortOption>("confidence_asc");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -68,12 +70,13 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
 
   // 드래프트 매물 + 에러 매물 (재시도 대상)
   const { data, isLoading, isFetching } = useQuery<{ listings: Listing[]; total: number }>({
-    queryKey: ["listings", "review", sort, search],
+    queryKey: ["listings", "review", sort, search, sourceFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("status", "draft");
       params.set("limit", "200");
       if (search) params.set("q", search);
+      if (sourceFilter !== "all") params.set("sourceType", sourceFilter);
       const res = await fetch(`/api/listings?${params.toString()}`);
       if (!res.ok) throw new Error("fetch failed");
       return res.json();
@@ -190,6 +193,26 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* 소스 필터 */}
+            <div className="flex rounded-md border border-stone/40 overflow-hidden text-xs">
+              {(["all", "youtube", "blog"] as SourceFilter[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSourceFilter(s)}
+                  className={`px-2.5 py-1.5 transition-colors ${
+                    sourceFilter === s
+                      ? s === "youtube"
+                        ? "bg-red-500 text-white"
+                        : s === "blog"
+                        ? "bg-emerald-500 text-white"
+                        : "bg-sea text-sea-foreground"
+                      : "text-muted-jeju hover:bg-paper"
+                  }`}
+                >
+                  {s === "all" ? "전체" : s === "youtube" ? "유튜브" : "블로그"}
+                </button>
+              ))}
+            </div>
             <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
@@ -401,10 +424,10 @@ function DraftCard({
 
   return (
     <Card
-      className={`overflow-hidden cursor-pointer transition-all ${
-        selected
-          ? "ring-2 ring-sea border-sea"
-          : "hover:border-sea/50"
+      className={`overflow-hidden cursor-pointer transition-all border-l-[3px] ${
+        listing.sourceType === "blog" ? "border-l-emerald-500" : "border-l-red-500"
+      } ${
+        selected ? "ring-2 ring-sea border-sea" : "hover:border-sea/50"
       }`}
       onClick={onSelect}
     >

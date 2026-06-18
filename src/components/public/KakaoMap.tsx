@@ -39,12 +39,23 @@ function loadKakaoSdk(): Promise<any> {
     const s = document.createElement("script");
     s.id = "kakao-sdk";
     s.async = true;
-    s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&autoload=false`;
+    s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&autoload=false&libraries=services`;
     s.onload = finish;
     s.onerror = reject;
     document.head.appendChild(s);
   });
 }
+
+// ── 편의시설 범례 정의 ──
+const AMENITIES = [
+  { id: "HP8", label: "병원",     emoji: "🏥", color: "#e74c3c" },
+  { id: "SC4", label: "학교",     emoji: "🏫", color: "#3498db" },
+  { id: "PO3", label: "관공서",   emoji: "🏛️", color: "#8e44ad" },
+  { id: "MT1", label: "마트",     emoji: "🛒", color: "#27ae60" },
+  { id: "SW8", label: "버스정류장", emoji: "🚌", color: "#f39c12" },
+] as const;
+
+type AmenityId = (typeof AMENITIES)[number]["id"];
 
 export function KakaoMap({
   listings,
@@ -56,11 +67,13 @@ export function KakaoMap({
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const poiMarkersRef = useRef<Map<AmenityId, any[]>>(new Map());
   const onSelectRef = useRef(onSelectListing);
   onSelectRef.current = onSelectListing;
   const [status, setStatus] = useState<"loading" | "ready" | "nokey" | "error">(
     KAKAO_KEY ? "loading" : "nokey",
   );
+  const [activeAmenities, setActiveAmenities] = useState<Set<AmenityId>>(new Set());
 
   // 지도 초기화
   useEffect(() => {
@@ -138,32 +151,123 @@ export function KakaoMap({
     }
   }, [highlightId]);
 
+  // 편의시설 토글
+  const toggleAmenity = (amenityId: AmenityId) => {
+    if (status !== "ready" || !mapRef.current) return;
+    const kakao = window.kakao;
+    const map = mapRef.current;
+    const next = new Set(activeAmenities);
+
+    if (next.has(amenityId)) {
+      // 끄기 — 마커 제거
+      (poiMarkersRef.current.get(amenityId) ?? []).forEach((m) => m.setMap(null));
+      poiMarkersRef.current.delete(amenityId);
+      next.delete(amenityId);
+    } else {
+      // 켜기 — 카테고리 검색 후 마커 표시
+      next.add(amenityId);
+      const amenity = AMENITIES.find((a) => a.id === amenityId)!;
+      const ps = new kakao.maps.services.Places(map);
+      ps.categorySearch(
+        amenityId,
+        (data: any[], status: string) => {
+          if (status !== kakao.maps.services.Status.OK) return;
+          const markers: any[] = [];
+          for (const place of data.slice(0, 30)) {
+            const el = document.createElement("div");
+            el.style.cssText = [
+              "transform:translate(-50%,-50%)",
+              "width:22px","height:22px",
+              "border-radius:9999px",
+              `background:${amenity.color}`,
+              "border:2px solid #fff",
+              "box-shadow:0 1px 4px rgba(0,0,0,.3)",
+              "display:flex","align-items:center","justify-content:center",
+              "font-size:11px","cursor:default",
+            ].join(";");
+            el.title = place.place_name;
+            el.textContent = amenity.emoji;
+            const overlay = new kakao.maps.CustomOverlay({
+              position: new kakao.maps.LatLng(place.y, place.x),
+              content: el,
+              yAnchor: 0.5,
+              xAnchor: 0.5,
+              zIndex: 2,
+            });
+            overlay.setMap(map);
+            markers.push(overlay);
+          }
+          poiMarkersRef.current.set(amenityId, markers);
+        },
+        { useMapBounds: true },
+      );
+    }
+    setActiveAmenities(next);
+  };
+
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl border border-stone/60 bg-muted",
+        "w-full overflow-hidden rounded-xl border border-stone/60 bg-muted",
         className,
       )}
     >
-      <div ref={containerRef} className="h-full min-h-[400px] w-full" />
+      <div className="relative">
+        <div ref={containerRef} className="min-h-[400px] w-full" />
+        {status !== "ready" ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-paper/80 p-6 text-center text-sm backdrop-blur">
+            {status === "loading" ? (
+              <span className="text-muted-foreground">지도를 불러오는 중…</span>
+            ) : status === "nokey" ? (
+              <span className="max-w-sm text-muted-foreground">
+                카카오 지도 키(<code>NEXT_PUBLIC_KAKAO_JS_KEY</code>)가 설정되지 않았습니다.
+              </span>
+            ) : (
+              <span className="max-w-sm text-muted-foreground">
+                지도를 불러오지 못했습니다. 카카오 개발자 콘솔에서 현재 도메인이 등록됐는지 확인하세요.
+              </span>
+            )}
+          </div>
+        ) : null}
+      </div>
 
-      {status !== "ready" ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-paper/80 p-6 text-center text-sm backdrop-blur">
-          {status === "loading" ? (
-            <span className="text-muted-foreground">지도를 불러오는 중…</span>
-          ) : status === "nokey" ? (
-            <span className="max-w-sm text-muted-foreground">
-              카카오 지도 키(<code>NEXT_PUBLIC_KAKAO_JS_KEY</code>)가 설정되지
-              않았습니다.
-            </span>
-          ) : (
-            <span className="max-w-sm text-muted-foreground">
-              지도를 불러오지 못했습니다. 카카오 개발자 콘솔에서 현재 도메인이
-              등록됐는지 확인하세요.
-            </span>
-          )}
-        </div>
-      ) : null}
+      {/* 편의시설 범례 */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-stone/40 bg-background/80 px-3 py-2 backdrop-blur">
+        <span className="text-[10px] text-muted-foreground shrink-0">주변시설</span>
+        {AMENITIES.map((a) => {
+          const active = activeAmenities.has(a.id);
+          return (
+            <button
+              key={a.id}
+              onClick={() => toggleAmenity(a.id)}
+              className={cn(
+                "flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                active
+                  ? "border-transparent text-white shadow-sm"
+                  : "border-stone/50 bg-background text-muted-foreground hover:border-stone",
+              )}
+              style={active ? { backgroundColor: a.color } : undefined}
+            >
+              <span>{a.emoji}</span>
+              {a.label}
+            </button>
+          );
+        })}
+        {activeAmenities.size > 0 && (
+          <button
+            onClick={() => {
+              activeAmenities.forEach((id) => {
+                (poiMarkersRef.current.get(id) ?? []).forEach((m) => m.setMap(null));
+              });
+              poiMarkersRef.current.clear();
+              setActiveAmenities(new Set());
+            }}
+            className="ml-auto text-[10px] text-muted-foreground hover:text-basalt"
+          >
+            전체 해제
+          </button>
+        )}
+      </div>
     </div>
   );
 }
