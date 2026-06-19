@@ -19,7 +19,7 @@ const DOC = "settings/cronConfig";
 const DEFAULT: CronConfig = {
   youtube:  { enabled: true,  intervalDays: 1, hourKST: 1, lastRunAt: null },
   blog:     { enabled: true,  intervalDays: 2, hourKST: 2, lastRunAt: null },
-  rotation: { enabled: false, lastRunAt: null },
+  rotation: { enabled: true, lastRunAt: null },
 };
 
 export async function getCronConfig(): Promise<CronConfig> {

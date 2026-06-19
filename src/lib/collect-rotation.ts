@@ -4,7 +4,8 @@ import { adminDb } from "./firebase";
 import { runCollection } from "./collect";
 import { REGION_NAMES } from "./regions";
 
-const REGIONS_PER_RUN = 4; // 한 번에 처리할 읍면동 수 (Vercel 300s 고려)
+// 한 번에 처리할 읍면동 수. cron이 4시간마다(하루 6회) 돌아 3×6=18 슬롯 → 15개 매일 1바퀴.
+const REGIONS_PER_RUN = 3;
 const STATE_DOC = "settings/rotationState";
 
 interface RotationState {
@@ -41,6 +42,7 @@ export async function runRotationCollection() {
         periodDays: 90,
         keyword: "매물",
         trigger: "cron",
+        light: true, // 지역당 3쿼리×1페이지로 쿼터 절약
       });
       results.push({ region, found: job.found, processed: job.processed, failed: job.failed });
     } catch (e: any) {

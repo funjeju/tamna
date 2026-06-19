@@ -57,9 +57,18 @@ interface Structured {
 // ── 1) YouTube 검색 (쿼리 다변화 + 페이지네이션) ──
 // 단일 쿼리/10건만 보면 매번 같은 영상만 잡히므로,
 // 지역·유형별 쿼리 여러 개를 페이지 단위로 깊게 훑어 후보를 넓힌다.
-function buildQueries(keyword: string, region: string): string[] {
+function buildQueries(keyword: string, region: string, light = false): string[] {
   const kw = (keyword || "").trim();
   const base = region && region !== "전체" ? `제주 ${region}` : "제주";
+  // light: 읍면동 로테이션용 — 매일 15개를 다 도는 대신 쿼터 절약 (지역당 3쿼리×1페이지)
+  if (light) {
+    const qs = [
+      `${base} 매물`,
+      `${base} 단독주택 매매`,
+      `${base} 토지 매매`,
+    ];
+    return [...new Set(qs.filter(Boolean))];
+  }
   const qs = [
     `${base} 부동산 ${kw}`.trim(),
     `${base} 매물`,
@@ -121,16 +130,18 @@ async function searchCandidates(
   keyword: string,
   region: string,
   periodDays: number,
+  light = false,
 ): Promise<YtVideo[]> {
   if (!YT_KEY) throw new Error("YOUTUBE_API_KEY 미설정");
   const publishedAfter = new Date(Date.now() - periodDays * 86400000).toISOString();
-  const queries = buildQueries(keyword, region);
+  const queries = buildQueries(keyword, region, light);
+  const pages = light ? 1 : PAGES_PER_QUERY;
   const idSet = new Set<string>();
 
   for (const q of queries) {
     if (idSet.size >= CANDIDATE_CAP) break;
     let token: string | undefined;
-    for (let p = 0; p < PAGES_PER_QUERY && idSet.size < CANDIDATE_CAP; p++) {
+    for (let p = 0; p < pages && idSet.size < CANDIDATE_CAP; p++) {
       // relevance 로 깊게, 첫 쿼리는 최신순도 한 번 섞음
       const order = p === 0 ? "relevance" : "date";
       const { ids, next } = await searchPage(q, publishedAfter, order, token);
@@ -411,13 +422,14 @@ export async function runCollection(opts: {
   periodDays: number;
   keyword: string;
   trigger?: "manual" | "cron";
+  light?: boolean;
 }) {
   const startedAt = new Date();
   const items: CollectionJobItem[] = [];
   let processed = 0;
   let failed = 0;
 
-  const candidates = await searchCandidates(opts.keyword, opts.region, opts.periodDays);
+  const candidates = await searchCandidates(opts.keyword, opts.region, opts.periodDays, opts.light);
   const existing = await loadKeySet("listings", "videoId");
   const optOuts = await loadKeySet("optOuts", "key");
 
