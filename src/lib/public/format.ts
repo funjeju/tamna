@@ -89,6 +89,7 @@ export async function toggleFavorite(listingId: string, notifyPriceDrop = false)
 /** listings API 쿼리스트링 빌더 */
 export function buildListingsQuery(filters: {
   q?: string;
+  sourceType?: string;
   propertyTypes?: string[];
   dealTypes?: string[];
   priceMin?: number;
@@ -104,6 +105,7 @@ export function buildListingsQuery(filters: {
 }): string {
   const sp = new URLSearchParams();
   if (filters.q) sp.set("q", filters.q);
+  if (filters.sourceType) sp.set("sourceType", filters.sourceType);
   sp.set("status", filters.status ?? "published");
   if (filters.sort) sp.set("sort", filters.sort);
   if (filters.limit) sp.set("limit", String(filters.limit));

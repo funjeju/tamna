@@ -119,6 +119,7 @@ export interface CollectionJob {
 
 export interface ListingFilters {
   q?: string;
+  sourceType?: "youtube" | "blog";
   propertyTypes?: PropertyType[];
   dealTypes?: DealType[];
   priceMin?: number; // 만원

@@ -8,7 +8,6 @@ import { Bookmark, Compass, Heart, Search as SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import type { Listing, ListingFilters, Theme } from "@/lib/types";
 import { buildListingsQuery } from "@/lib/public/format";
@@ -95,7 +94,7 @@ export function PublicApp() {
     return listings.find((l) => l.id === selectedId) ?? null;
   }, [listings, selectedId]);
 
-  // 홈 '방금 들어온 매물' — 플랫폼에 최근 들어온 순(게시·수집 시각) 8개
+  // 홈 '방금 들어온 매물' — 플랫폼에 최근 들어온 순(게시·수집 시각) 12개
   const homePreviewListings = useMemo(() => {
     const ts = (s?: string | null) => (s ? new Date(s).getTime() : 0);
     return [...listings]
@@ -103,7 +102,7 @@ export function PublicApp() {
         (a, b) =>
           ts(b.publishedAt2 ?? b.collectedAt) - ts(a.publishedAt2 ?? a.collectedAt),
       )
-      .slice(0, 8);
+      .slice(0, 12);
   }, [listings]);
 
   const detailQuery = useQuery<{ listing: Listing }>({
@@ -302,20 +301,14 @@ export function PublicApp() {
                   </Button>
                 </header>
 
-                {listingsQuery.isLoading ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <Skeleton key={i} className="h-72 w-full rounded-xl" />
-                    ))}
-                  </div>
-                ) : (
-                  <ListingGrid
-                    listings={homePreviewListings}
-                    onOpen={handleOpenListing}
-                    onFavoriteChange={handleFavoriteChange}
-                    emptyTitle="아직 게시된 매물이 없습니다"
-                  />
-                )}
+                <ListingGrid
+                  listings={homePreviewListings}
+                  loading={listingsQuery.isLoading}
+                  onOpen={handleOpenListing}
+                  onFavoriteChange={handleFavoriteChange}
+                  emptyTitle="아직 게시된 매물이 없습니다"
+                  cols={3}
+                />
               </section>
             </motion.div>
           ) : (
@@ -345,7 +338,7 @@ export function PublicApp() {
                     className="min-h-[400px] md:min-h-[600px]"
                   />
                 </div>
-                <div className="order-1 max-h-[640px] scroll-thin overflow-y-auto lg:order-2">
+                <div className="order-1 lg:order-2">
                   <ListingGrid
                     listings={listings}
                     loading={listingsQuery.isLoading}
@@ -354,6 +347,7 @@ export function PublicApp() {
                     onReset={handleReset}
                     onPickTheme={handlePickTheme}
                     onHighlight={setHighlightId}
+                    infiniteScroll
                   />
                 </div>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 // TamnaIndex — 검색바 + 정렬 + 필터 드롭다운 + 활성 필터 칩
 import { useMemo } from "react";
-import { Search, SlidersHorizontal, X, ArrowDownUp } from "lucide-react";
+import { BookOpen, Search, SlidersHorizontal, X, ArrowDownUp, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -103,6 +103,7 @@ export function SearchBar({
 
   const removeChip = (key: keyof ListingFilters, value?: string) => {
     if (key === "q") return onChange({ ...filters, q: undefined });
+    if (key === "sourceType") return onChange({ ...filters, sourceType: undefined });
     if (key === "priceMin" || key === "priceMax")
       return onChange({ ...filters, priceMin: undefined, priceMax: undefined });
     if (key === "areaMin" || key === "areaMax")
@@ -196,6 +197,36 @@ export function SearchBar({
             >
               <ScrollArea className="max-h-[70vh]">
                 <div className="space-y-5 p-4">
+                  {/* 소스 타입 */}
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted-jeju uppercase">
+                      매물 출처
+                    </h4>
+                    <div className="flex gap-2">
+                      {(
+                        [
+                          { value: undefined, label: "전체" },
+                          { value: "youtube" as const, label: "유튜브", Icon: Youtube, color: "text-red-500" },
+                          { value: "blog" as const, label: "블로그", Icon: BookOpen, color: "text-emerald-600" },
+                        ] as const
+                      ).map(({ value, label, Icon, color }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => onChange({ ...filters, sourceType: value })}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                            filters.sourceType === value
+                              ? "border-sea bg-sea text-sea-foreground"
+                              : "border-stone/60 text-basalt hover:border-sea/50"
+                          }`}
+                        >
+                          {Icon && <Icon className={`size-3.5 ${filters.sourceType === value ? "text-sea-foreground" : color}`} />}
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
                   {/* 유형 */}
                   <section>
                     <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted-jeju uppercase">
@@ -429,6 +460,7 @@ export function SearchBar({
 function countActive(f: ListingFilters): number {
   let n = 0;
   if (f.q) n++;
+  if (f.sourceType) n++;
   if (f.propertyTypes?.length) n += f.propertyTypes.length;
   if (f.dealTypes?.length) n += f.dealTypes.length;
   if (f.regions?.length) n += f.regions.length;
@@ -448,6 +480,7 @@ interface ChipInfo {
 function buildActiveChips(f: ListingFilters): ChipInfo[] {
   const out: ChipInfo[] = [];
   if (f.q) out.push({ key: "q", label: `검색: ${f.q}` });
+  if (f.sourceType) out.push({ key: "sourceType", label: f.sourceType === "youtube" ? "유튜브" : "블로그" });
   f.propertyTypes?.forEach((v) =>
     out.push({ key: "propertyTypes", value: v, label: v }),
   );
