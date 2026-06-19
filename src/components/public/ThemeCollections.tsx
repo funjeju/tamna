@@ -82,28 +82,22 @@ const THEME_META: ThemeMeta[] = [
 
 export function ThemeCollections({ listings, onPick, loading }: ThemeCollectionsProps) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
-      <header className="mb-6 flex items-end justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-basalt md:text-2xl">
-            테마 컬렉션
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            제주의 삶을 6가지 시선으로 묶었습니다. 테마를 고르면 해당 매물만
-            지도와 리스트로 모아봅니다.
-          </p>
-        </div>
-        <Badge variant="outline" className="hidden border-stone/60 text-muted-jeju sm:flex">
-          {THEMES.length}개 테마
+    <section className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
+      <header className="mb-3 flex items-end justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight text-basalt md:text-xl">
+          테마 컬렉션
+        </h2>
+        <Badge variant="outline" className="hidden border-stone/60 text-[10px] text-muted-jeju sm:flex">
+          {THEMES.length}개 테마 · 좌우로 넘겨보세요
         </Badge>
       </header>
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {THEME_META.map((meta) => (
             <div
               key={meta.title}
-              className="flex flex-col overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm"
+              className="w-[240px] shrink-0 overflow-hidden rounded-xl border border-stone/60 bg-card shadow-sm"
             >
               <div className="aspect-[16/9] w-full animate-pulse bg-muted" />
               <div className="space-y-2 p-4">
@@ -114,7 +108,7 @@ export function ThemeCollections({ listings, onPick, loading }: ThemeCollections
           ))}
         </div>
       ) : (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex snap-x gap-4 overflow-x-auto scroll-thin pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {THEME_META.map((meta, idx) => {
           const items = listings.filter((l) => l.themes.includes(meta.title));
           const count = items.length;
@@ -130,7 +124,7 @@ export function ThemeCollections({ listings, onPick, loading }: ThemeCollections
               onClick={() => onPick(meta.title)}
               type="button"
               aria-label={`${meta.title} 테마 매물 ${count}건 보기`}
-              className={`group flex flex-col overflow-hidden rounded-xl border border-stone/60 bg-card text-left shadow-sm transition hover:shadow-lg ${meta.border}`}
+              className={`group flex w-[240px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-stone/60 bg-card text-left shadow-sm transition hover:shadow-lg ${meta.border}`}
             >
               {/* 대표 썸네일 모자이크 / 그라데이션 */}
               <div className="relative aspect-[16/9] w-full overflow-hidden">

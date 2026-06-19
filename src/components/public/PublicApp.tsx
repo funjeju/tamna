@@ -23,10 +23,19 @@ import { ListingDetail } from "./ListingDetail";
 import { MySheet } from "./MySheet";
 import { PublicFooter } from "./PublicFooter";
 import { ChatWidget } from "./ChatWidget";
+import { FeaturedBanner } from "./FeaturedBanner";
+import { SourceToggle, applySource, type SourceFilter } from "./SourceToggle";
 
 type View = "home" | "search";
 
 const EMPTY_FILTERS: ListingFilters = { sort: "latest", status: "published" };
+
+// 최신 매물 기준 — 2일 이내
+const LATEST_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+function effTime(l: Listing): number {
+  const s = l.publishedAt2 ?? l.collectedAt;
+  return s ? new Date(s).getTime() : 0;
+}
 
 export function PublicApp() {
   const qc = useQueryClient();
@@ -45,6 +54,8 @@ export function PublicApp() {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [myOpen, setMyOpen] = useState(false);
   const [headerQ, setHeaderQ] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [showAllLatest, setShowAllLatest] = useState(false);
 
   // listings 쿼리 — 홈에서도 테마 카드 카운트를 위해 200개까지 로드.
   // 홈의 '방금 들어온 매물' 미리보기는 이 목록의 앞 8개를 사용한다.
@@ -88,6 +99,16 @@ export function PublicApp() {
   });
   const favCount = favQuery.data?.favorites?.length ?? 0;
 
+  // 주목할 매물 (광고/추천 배너)
+  const featuredQuery = useQuery<{ listings: Listing[]; isFallback: boolean }>({
+    queryKey: ["featured"],
+    queryFn: async () => {
+      const res = await fetch("/api/featured", { cache: "no-store" });
+      if (!res.ok) throw new Error("featured fetch failed");
+      return res.json();
+    },
+  });
+
   // 선택된 매물 — 가능하면 목록에서 찾고, 없으면 상세 API
   const listings = listingsQuery.data?.listings ?? [];
   const selectedListing = useMemo<Listing | null>(() => {
@@ -95,13 +116,21 @@ export function PublicApp() {
     return listings.find((l) => l.id === selectedId) ?? null;
   }, [listings, selectedId]);
 
-  // 홈 '방금 들어온 매물' — 최신순 전체 (무한스크롤로 12개씩 표시)
-  const homePreviewListings = useMemo(() => {
-    const ts = (s?: string | null) => (s ? new Date(s).getTime() : 0);
-    return [...listings].sort(
-      (a, b) => ts(b.publishedAt2 ?? b.collectedAt) - ts(a.publishedAt2 ?? a.collectedAt),
-    );
-  }, [listings]);
+  // 소스(전체/블로그/유튜브) 필터 적용
+  const sourcedListings = useMemo(
+    () => applySource(listings, sourceFilter),
+    [listings, sourceFilter],
+  );
+
+  // 최신 매물(2일 이내) / 전체 매물(그 외) — 중복 없이 분리
+  const { latestListings, restListings } = useMemo(() => {
+    const now = Date.now();
+    const sorted = [...sourcedListings].sort((a, b) => effTime(b) - effTime(a));
+    const latest = sorted.filter((l) => now - effTime(l) <= LATEST_WINDOW_MS);
+    const latestIds = new Set(latest.map((l) => l.id));
+    const rest = sorted.filter((l) => !latestIds.has(l.id));
+    return { latestListings: latest, restListings: rest };
+  }, [sourcedListings]);
 
   const detailQuery = useQuery<{ listing: Listing }>({
     queryKey: ["listing", selectedId],
@@ -273,21 +302,77 @@ export function PublicApp() {
                 freshness={freshness}
               />
 
+              {/* 주목할 매물 — 슬라이드 배너 */}
+              <FeaturedBanner
+                listings={featuredQuery.data?.listings ?? []}
+                loading={featuredQuery.isLoading}
+                isFallback={featuredQuery.data?.isFallback}
+                onOpen={handleOpenListing}
+              />
+
               <ThemeCollections
                 listings={listings}
                 onPick={handlePickTheme}
                 loading={listingsQuery.isLoading}
               />
 
-              {/* 최근 매물 미리보기 */}
-              <section className="mx-auto max-w-7xl px-4 pb-12 md:px-8 md:pb-16">
+              {/* 최신 매물 — 2일 이내, 3×2 + 더보기 */}
+              <section className="mx-auto max-w-7xl px-4 pb-2 md:px-8">
+                <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold tracking-tight text-basalt md:text-2xl">
+                      최신 매물
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      최근 2일 이내 새로 들어온 매물
+                    </p>
+                  </div>
+                  <SourceToggle
+                    value={sourceFilter}
+                    onChange={(v) => {
+                      setSourceFilter(v);
+                      setShowAllLatest(false);
+                    }}
+                  />
+                </header>
+
+                {latestListings.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-stone/60 bg-paper/50 px-6 py-10 text-center text-sm text-muted-foreground">
+                    최근 2일 이내 새 매물이 없습니다.
+                  </p>
+                ) : (
+                  <>
+                    <ListingGrid
+                      listings={showAllLatest ? latestListings : latestListings.slice(0, 6)}
+                      loading={listingsQuery.isLoading}
+                      onOpen={handleOpenListing}
+                      onFavoriteChange={handleFavoriteChange}
+                      cols={3}
+                    />
+                    {latestListings.length > 6 ? (
+                      <div className="mt-4 flex justify-center">
+                        <Button
+                          variant="outline"
+                          className="border-sea/50 text-sea"
+                          onClick={() => setShowAllLatest((v) => !v)}
+                        >
+                          {showAllLatest ? "접기" : `더보기 (${latestListings.length - 6}건)`}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </section>
+
+              {/* 전체 매물 — 2일 이전 포함 나머지, 무한스크롤 */}
+              <section className="mx-auto max-w-7xl px-4 pt-8 pb-12 md:px-8 md:pb-16">
                 <header className="mb-4 flex items-end justify-between">
                   <div>
                     <h2 className="text-xl font-semibold tracking-tight text-basalt md:text-2xl">
-                      방금 들어온 매물
+                      전체 매물
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      최근 게시된 제주 매물 · 스크롤하면 계속 불러옵니다.
+                      최신 매물을 제외한 전체 · 스크롤하면 계속 불러옵니다.
                     </p>
                   </div>
                   <Button
@@ -295,16 +380,16 @@ export function PublicApp() {
                     className="border-sea/50 text-sea"
                     onClick={() => goSearch(EMPTY_FILTERS)}
                   >
-                    전체 보기
+                    지도에서 보기
                   </Button>
                 </header>
 
                 <ListingGrid
-                  listings={homePreviewListings}
+                  listings={restListings}
                   loading={listingsQuery.isLoading}
                   onOpen={handleOpenListing}
                   onFavoriteChange={handleFavoriteChange}
-                  emptyTitle="아직 게시된 매물이 없습니다"
+                  emptyTitle="표시할 매물이 없습니다"
                   cols={3}
                   infiniteScroll
                 />
@@ -321,17 +406,22 @@ export function PublicApp() {
             >
               <SearchBar
                 filters={filters}
-                total={listingsQuery.data?.total ?? 0}
+                total={sourcedListings.length}
                 loading={listingsQuery.isLoading}
                 onChange={(next) => setFilters(next)}
                 onReset={handleReset}
               />
 
+              {/* 소스 토글 */}
+              <div className="mt-3 flex justify-end">
+                <SourceToggle value={sourceFilter} onChange={setSourceFilter} />
+              </div>
+
               {/* 지도 + 그리드 레이아웃 */}
-              <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
+              <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
                 <div className="order-2 lg:order-1 lg:sticky lg:top-20 lg:self-start">
                   <KakaoMap
-                    listings={listings}
+                    listings={sourcedListings}
                     onSelectListing={handleOpenListing}
                     highlightId={highlightId}
                     className="min-h-[400px] md:min-h-[600px]"
@@ -339,7 +429,7 @@ export function PublicApp() {
                 </div>
                 <div className="order-1 lg:order-2">
                   <ListingGrid
-                    listings={listings}
+                    listings={sourcedListings}
                     loading={listingsQuery.isLoading}
                     onOpen={handleOpenListing}
                     onFavoriteChange={handleFavoriteChange}
