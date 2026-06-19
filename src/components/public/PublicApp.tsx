@@ -22,6 +22,7 @@ import { AuthButton } from "@/components/auth/AuthButton";
 import { ListingDetail } from "./ListingDetail";
 import { MySheet } from "./MySheet";
 import { PublicFooter } from "./PublicFooter";
+import { ChatWidget } from "./ChatWidget";
 
 type View = "home" | "search";
 
@@ -377,6 +378,9 @@ export function PublicApp() {
         onOpenListing={handleOpenListing}
         currentFilters={filters}
       />
+
+      {/* 매물 검색 챗봇 (플로팅) */}
+      <ChatWidget onOpenListing={handleOpenListing} />
     </div>
   );
 }
