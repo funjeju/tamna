@@ -2,6 +2,7 @@
 // Firebase 클라이언트 SDK (브라우저 — 구글 로그인용)
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 // 환경변수에 BOM(U+FEFF)/공백이 끼어드는 경우가 있어 방어적으로 제거
 const clean = (v?: string) => v?.replace(/^﻿/, "").trim();
@@ -19,4 +20,5 @@ const config = {
 export const clientApp: FirebaseApp =
   getApps()[0] ?? initializeApp(config);
 export const clientAuth: Auth = getAuth(clientApp);
+export const clientStorage: FirebaseStorage = getStorage(clientApp);
 export const googleProvider = new GoogleAuthProvider();

@@ -5,10 +5,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle2,
-  ClipboardPaste,
   ExternalLink,
   Eye,
-  ImagePlus,
   Link2,
   RefreshCw,
   ShieldAlert,
@@ -16,7 +14,6 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
-  Trash2,
   Youtube,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +47,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ChipInput } from "./ChipInput";
+import { ImageSlot } from "./ImageSlot";
 import { MiniMap } from "./MiniMap";
 import {
   canPublishClient,
@@ -91,8 +89,10 @@ export function ListingEditPanel({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [thumbnailEdit, setThumbnailEdit] = useState(false);
-  const [extraImages, setExtraImages] = useState<string[]>(listing.images ?? []);
+  const [extraImages, setExtraImages] = useState<string[]>(() => {
+    const imgs = listing.images ?? [];
+    return [imgs[0] ?? "", imgs[1] ?? "", imgs[2] ?? ""];
+  });
 
   // listing.id가 바뀌면 폼 리셋 (useEffect 없이 동기식 처리)
   if (listing.id !== lastListingId) {
@@ -100,8 +100,8 @@ export function ListingEditPanel({
     setForm(listing);
     setRejectReason("");
     setRejectOpen(false);
-    setThumbnailEdit(false);
-    setExtraImages(listing.images ?? []);
+    const imgs = listing.images ?? [];
+    setExtraImages([imgs[0] ?? "", imgs[1] ?? "", imgs[2] ?? ""]);
   }
 
   // PATCH mutation
@@ -309,163 +309,57 @@ export function ListingEditPanel({
       </CardHeader>
 
       <CardContent className="flex-1 overflow-y-auto scroll-thin space-y-4 p-4">
-        {/* 썸네일 + 외부 링크 */}
-        <div className="space-y-2">
-          {/* 썸네일 */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium text-muted-jeju">썸네일</Label>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-2 text-[11px] text-muted-jeju"
-                onClick={() => setThumbnailEdit((v) => !v)}
-              >
-                {thumbnailEdit ? "미리보기" : "URL 편집"}
-              </Button>
-            </div>
-            {thumbnailEdit ? (
-              <div className="flex gap-1.5">
-                <Input
-                  value={form.thumbnailUrl ?? ""}
-                  onChange={(e) => updateField("thumbnailUrl", e.target.value)}
-                  onPaste={(e) => {
-                    const text = e.clipboardData.getData("text/plain");
-                    if (text.startsWith("http")) {
-                      e.preventDefault();
-                      updateField("thumbnailUrl", text.trim());
-                    }
-                  }}
-                  placeholder="https://... (URL 직접 입력 또는 Ctrl+V)"
-                  className="text-xs font-mono"
-                />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="shrink-0 size-9"
-                  title="클립보드에서 붙여넣기"
-                  onClick={async () => {
-                    try {
-                      const text = await navigator.clipboard.readText();
-                      if (text.startsWith("http")) updateField("thumbnailUrl", text.trim());
-                    } catch { /* permission denied */ }
-                  }}
-                >
-                  <ClipboardPaste className="size-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <div
-                className="aspect-video rounded-md overflow-hidden bg-paper border border-stone/40 cursor-pointer group relative"
-                onClick={() => setThumbnailEdit(true)}
-              >
-                {form.thumbnailUrl ? (
-                  <img src={form.thumbnailUrl} alt={form.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-jeju text-xs">
-                    <ImagePlus className="size-5 mr-1.5" /> 썸네일 없음 — 클릭하여 추가
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-white text-xs font-medium">URL 편집</span>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* 썸네일 + 이미지 + 소스 링크 */}
+        <div className="space-y-3">
+          {/* 썸네일 — 16:9 */}
+          <ImageSlot
+            url={form.thumbnailUrl ?? ""}
+            aspectRatio="video"
+            label="썸네일 (클릭·Ctrl+V로 업로드)"
+            onUpload={(url) => {
+              setForm((f) => ({ ...f, thumbnailUrl: url }));
+              patchMutation.mutate({ thumbnailUrl: url });
+            }}
+            onRemove={() => {
+              setForm((f) => ({ ...f, thumbnailUrl: "" }));
+              patchMutation.mutate({ thumbnailUrl: "" });
+            }}
+          />
 
-          {/* 추가 이미지 (최대 3장) */}
+          {/* 추가 이미지 3장 — 정사각형 */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium text-muted-jeju">추가 이미지 (최대 3장)</Label>
-              {extraImages.length < 3 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-[11px] text-sea"
-                  onClick={() => {
-                    const next = [...extraImages, ""];
+            <Label className="text-xs font-medium text-muted-jeju">추가 이미지 (최대 3장)</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((idx) => (
+                <ImageSlot
+                  key={idx}
+                  url={extraImages[idx] ?? ""}
+                  aspectRatio="square"
+                  onUpload={(url) => {
+                    const next = [...extraImages];
+                    next[idx] = url;
                     setExtraImages(next);
                     patchMutation.mutate({ images: next.filter(Boolean) });
                   }}
-                >
-                  <ImagePlus className="size-3 mr-0.5" /> 추가
-                </Button>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              {extraImages.map((url, idx) => (
-                <div key={idx} className="flex gap-1.5">
-                  {url ? (
-                    <div
-                      className="size-9 rounded border border-stone/40 overflow-hidden shrink-0 cursor-pointer"
-                      onClick={() => {
-                        const next = [...extraImages];
-                        next[idx] = "";
-                        setExtraImages(next);
-                      }}
-                    >
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="size-9 rounded border border-dashed border-stone/60 shrink-0 flex items-center justify-center text-muted-jeju">
-                      <ImagePlus className="size-3.5" />
-                    </div>
-                  )}
-                  <Input
-                    value={url}
-                    onChange={(e) => {
-                      const next = [...extraImages];
-                      next[idx] = e.target.value;
-                      setExtraImages(next);
-                      patchMutation.mutate({ images: next.filter(Boolean) });
-                    }}
-                    onPaste={(e) => {
-                      const text = e.clipboardData.getData("text/plain");
-                      if (text.startsWith("http")) {
-                        e.preventDefault();
-                        const next = [...extraImages];
-                        next[idx] = text.trim();
-                        setExtraImages(next);
-                        patchMutation.mutate({ images: next.filter(Boolean) });
-                      }
-                    }}
-                    placeholder="https://... (Ctrl+V 붙여넣기 가능)"
-                    className="text-xs font-mono"
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="shrink-0 size-9 text-muted-jeju hover:text-destructive"
-                    onClick={() => {
-                      const next = extraImages.filter((_, i) => i !== idx);
-                      setExtraImages(next);
-                      patchMutation.mutate({ images: next.filter(Boolean) });
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
+                  onRemove={() => {
+                    const next = [...extraImages];
+                    next[idx] = "";
+                    setExtraImages(next);
+                    patchMutation.mutate({ images: next.filter(Boolean) });
+                  }}
+                />
               ))}
-              {extraImages.length === 0 && (
-                <p className="text-[11px] text-muted-jeju text-center py-2 border border-dashed border-stone/40 rounded-md">
-                  이미지 없음 — 위 추가 버튼으로 URL 입력
-                </p>
-              )}
             </div>
           </div>
 
           {/* 소스 링크 */}
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm" className="flex-1">
-              <a
-                href={form.sourceUrl ?? form.videoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={form.sourceUrl ?? form.videoUrl} target="_blank" rel="noopener noreferrer">
                 {form.sourceType === "blog" ? (
-                  <><Link2 className="size-4 text-emerald-600" /> 블로그에서 보기</>
+                  <><Link2 className="size-4 text-emerald-600" />블로그에서 보기</>
                 ) : (
-                  <><Youtube className="size-4 text-destructive" /> YouTube에서 보기</>
+                  <><Youtube className="size-4 text-destructive" />YouTube에서 보기</>
                 )}
                 <ExternalLink className="size-3" />
               </a>
