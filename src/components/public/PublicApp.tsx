@@ -94,15 +94,12 @@ export function PublicApp() {
     return listings.find((l) => l.id === selectedId) ?? null;
   }, [listings, selectedId]);
 
-  // 홈 '방금 들어온 매물' — 플랫폼에 최근 들어온 순(게시·수집 시각) 12개
+  // 홈 '방금 들어온 매물' — 최신순 전체 (무한스크롤로 12개씩 표시)
   const homePreviewListings = useMemo(() => {
     const ts = (s?: string | null) => (s ? new Date(s).getTime() : 0);
-    return [...listings]
-      .sort(
-        (a, b) =>
-          ts(b.publishedAt2 ?? b.collectedAt) - ts(a.publishedAt2 ?? a.collectedAt),
-      )
-      .slice(0, 12);
+    return [...listings].sort(
+      (a, b) => ts(b.publishedAt2 ?? b.collectedAt) - ts(a.publishedAt2 ?? a.collectedAt),
+    );
   }, [listings]);
 
   const detailQuery = useQuery<{ listing: Listing }>({
@@ -289,7 +286,7 @@ export function PublicApp() {
                       방금 들어온 매물
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      최근 게시된 제주 영상 매물 미리보기.
+                      최근 게시된 제주 매물 · 스크롤하면 계속 불러옵니다.
                     </p>
                   </div>
                   <Button
@@ -308,6 +305,7 @@ export function PublicApp() {
                   onFavoriteChange={handleFavoriteChange}
                   emptyTitle="아직 게시된 매물이 없습니다"
                   cols={3}
+                  infiniteScroll
                 />
               </section>
             </motion.div>
