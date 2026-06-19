@@ -75,43 +75,71 @@ function parseBlogUrl(link: string): { blogId: string; logNo: string } | null {
   return null;
 }
 
+// pstatic.net 이미지 URL 추출 (src/data-src 모두 포함)
+function extractNaverImages(html: string, limit = 3): string[] {
+  const imgSet = new Set<string>();
+  const SKIP = /profile|icon|default|noimg|btn_|bg_|logo/i;
+  // pstatic.net 전체 서브도메인 커버 (src, data-src, content 속성 모두)
+  const re = /(?:src|data-src|content)=["']?(https?:\/\/[^\s"'<>]*pstatic\.net[^\s"'<>]*)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null && imgSet.size < limit) {
+    const url = m[1].replace(/&amp;/g, "&");
+    if (!SKIP.test(url)) imgSet.add(url);
+  }
+  return [...imgSet];
+}
+
+function extractOgImage(html: string): string {
+  const m = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+    ?? html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+  const url = m?.[1]?.replace(/&amp;/g, "&") ?? "";
+  return /profile|noimg|default/i.test(url) ? "" : url;
+}
+
 // ── 2) 블로그 본문 파싱 — 이미지 최대 3장 ──
 async function parseBlogPost(blogId: string, logNo: string): Promise<{ body: string; images: string[] }> {
-  try {
-    const url = `https://m.blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`;
+  const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
+  const DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+  async function fetchHtml(url: string, ua: string): Promise<string> {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
-        "Referer": "https://m.blog.naver.com/",
+        "User-Agent": ua,
+        "Referer": "https://blog.naver.com/",
         "Accept-Language": "ko-KR,ko;q=0.9",
       },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return { body: "", images: [] };
-    const html = await res.text();
+    return res.ok ? res.text() : "";
+  }
 
-    // og:image — 가장 확실한 썸네일
-    const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
-    const ogImage = ogMatch?.[1] ?? "";
+  try {
+    const mobileUrl = `https://m.blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`;
+    const desktopUrl = `https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`;
 
-    // 본문 텍스트 추출
-    const bodyMatch = html.match(/class="se-main-container"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/);
-    const rawBody = bodyMatch?.[1] ?? html.slice(0, 8000);
-    const body = stripHtml(rawBody).slice(0, 3000);
+    const mobileHtml = await fetchHtml(mobileUrl, MOBILE_UA);
 
-    // 이미지 추출 — 네이버 이미지 도메인 전체 커버
-    const imgRe = /https?:\/\/[^\s"'<>]*(?:postfiles\.pstatic\.net|blogfiles\.pstatic\.net|blogpfthumb\.pstatic\.net|mblogthumb[^"'<>\s]*\.pstatic\.net)[^\s"'<>]*/g;
+    // 본문 텍스트 (모바일 HTML 기준)
+    const bodyMatch = mobileHtml.match(/class="se-main-container"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/);
+    const body = stripHtml(bodyMatch?.[1] ?? mobileHtml.slice(0, 8000)).slice(0, 3000);
+
+    // 이미지 수집: og:image 우선, 그 다음 본문 이미지
     const imgSet = new Set<string>();
-    // og:image 먼저
-    if (ogImage && !ogImage.includes("default") && !ogImage.includes("noimg")) {
-      imgSet.add(ogImage.replace(/&amp;/g, "&"));
+    const ogImg = extractOgImage(mobileHtml);
+    if (ogImg) imgSet.add(ogImg);
+    for (const u of extractNaverImages(mobileHtml, 3)) {
+      if (imgSet.size >= 3) break;
+      imgSet.add(u);
     }
-    let m;
-    while ((m = imgRe.exec(html)) !== null && imgSet.size < 3) {
-      const src = m[0].replace(/&amp;/g, "&");
-      if (!src.includes("profile") && !src.includes("icon") && !src.includes("default")) {
-        imgSet.add(src);
+
+    // 모바일에서 이미지 1장도 못 찾으면 데스크탑 재시도
+    if (imgSet.size === 0) {
+      const desktopHtml = await fetchHtml(desktopUrl, DESKTOP_UA);
+      const ogD = extractOgImage(desktopHtml);
+      if (ogD) imgSet.add(ogD);
+      for (const u of extractNaverImages(desktopHtml, 3)) {
+        if (imgSet.size >= 3) break;
+        imgSet.add(u);
       }
     }
 
