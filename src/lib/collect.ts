@@ -423,6 +423,7 @@ export async function runCollection(opts: {
   keyword: string;
   trigger?: "manual" | "cron";
   light?: boolean;
+  maxProcess?: number; // 이 실행에서 구조화·저장할 신규 매물 상한 (미지정 시 MAX_PROCESS)
 }) {
   const startedAt = new Date();
   const items: CollectionJobItem[] = [];
@@ -451,7 +452,8 @@ export async function runCollection(opts: {
     });
   }
 
-  const toProcess = fresh.slice(0, MAX_PROCESS);
+  const cap = Math.max(1, opts.maxProcess ?? MAX_PROCESS);
+  const toProcess = fresh.slice(0, cap);
 
   for (const v of toProcess) {
     try {

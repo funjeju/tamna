@@ -43,6 +43,7 @@ export async function runRotationCollection() {
         keyword: "매물",
         trigger: "cron",
         light: true, // 지역당 3쿼리×1페이지로 쿼터 절약
+        maxProcess: 6, // 지역당 신규 6건만 → 3지역×6 = 18건/실행, 300초 안전
       });
       results.push({ region, found: job.found, processed: job.processed, failed: job.failed });
     } catch (e: any) {
