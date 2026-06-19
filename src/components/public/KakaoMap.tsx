@@ -164,43 +164,83 @@ export function KakaoMap({
       poiMarkersRef.current.delete(amenityId);
       next.delete(amenityId);
     } else {
-      // 켜기 — 카테고리 검색 후 마커 표시
+      // 켜기 — 제주 전역 거점 좌표 기준 반경 검색 (useMapBounds는 현재 화면만 커버해 누락 발생)
       next.add(amenityId);
       const amenity = AMENITIES.find((a) => a.id === amenityId)!;
-      const ps = new kakao.maps.services.Places(map);
-      ps.categorySearch(
-        amenityId,
-        (data: any[], status: string) => {
-          if (status !== kakao.maps.services.Status.OK) return;
-          const markers: any[] = [];
-          for (const place of data.slice(0, 30)) {
-            const el = document.createElement("div");
-            el.style.cssText = [
-              "transform:translate(-50%,-50%)",
-              "width:22px","height:22px",
-              "border-radius:9999px",
-              `background:${amenity.color}`,
-              "border:2px solid #fff",
-              "box-shadow:0 1px 4px rgba(0,0,0,.3)",
-              "display:flex","align-items:center","justify-content:center",
-              "font-size:11px","cursor:default",
-            ].join(";");
-            el.title = place.place_name;
-            el.textContent = amenity.emoji;
-            const overlay = new kakao.maps.CustomOverlay({
-              position: new kakao.maps.LatLng(place.y, place.x),
-              content: el,
-              yAnchor: 0.5,
-              xAnchor: 0.5,
-              zIndex: 2,
-            });
-            overlay.setMap(map);
-            markers.push(overlay);
-          }
-          poiMarkersRef.current.set(amenityId, markers);
-        },
-        { useMapBounds: true },
-      );
+      const ps = new kakao.maps.services.Places();
+      const allMarkers: any[] = [];
+      const seenIds = new Set<string>();
+
+      // 제주 동/서/남/북 + 중심 거점 5곳 × 반경 20km → 제주 전역 커버
+      const JEJU_CENTERS = [
+        { lat: 33.4996, lng: 126.5312 }, // 제주시 중심
+        { lat: 33.2541, lng: 126.5600 }, // 서귀포 중심
+        { lat: 33.3887, lng: 126.2400 }, // 서부(한림)
+        { lat: 33.4383, lng: 126.9200 }, // 동부(성산)
+        { lat: 33.3300, lng: 126.7800 }, // 남동(표선)
+      ];
+
+      let pending = JEJU_CENTERS.length;
+
+      const makeMarker = (place: any) => {
+        if (seenIds.has(place.id)) return null;
+        seenIds.add(place.id);
+        const el = document.createElement("div");
+        el.style.cssText = [
+          "transform:translate(-50%,-50%)",
+          "width:22px","height:22px",
+          "border-radius:9999px",
+          `background:${amenity.color}`,
+          "border:2px solid #fff",
+          "box-shadow:0 1px 4px rgba(0,0,0,.3)",
+          "display:flex","align-items:center","justify-content:center",
+          "font-size:11px","cursor:default",
+        ].join(";");
+        el.title = place.place_name;
+        el.textContent = amenity.emoji;
+        const overlay = new kakao.maps.CustomOverlay({
+          position: new kakao.maps.LatLng(place.y, place.x),
+          content: el,
+          yAnchor: 0.5, xAnchor: 0.5, zIndex: 2,
+        });
+        overlay.setMap(map);
+        return overlay;
+      };
+
+      const searchCenter = (center: { lat: number; lng: number }, page = 1) => {
+        ps.categorySearch(
+          amenityId,
+          (data: any[], st: string, pagination: any) => {
+            if (st === kakao.maps.services.Status.OK) {
+              for (const place of data) {
+                const m = makeMarker(place);
+                if (m) allMarkers.push(m);
+              }
+              // 다음 페이지 있으면 계속
+              if (pagination?.hasNextPage && page < 3) {
+                pagination.nextPage();
+              }
+            }
+            // 마지막 거점까지 완료되면 마커 저장
+            if (!pagination?.hasNextPage || page >= 3) {
+              pending--;
+              if (pending === 0) {
+                poiMarkersRef.current.set(amenityId, allMarkers);
+              }
+            }
+          },
+          {
+            location: new kakao.maps.LatLng(center.lat, center.lng),
+            radius: 20000, // 20km
+            size: 15,
+            page,
+          },
+        );
+      };
+
+      for (const center of JEJU_CENTERS) {
+        searchCenter(center);
+      }
     }
     setActiveAmenities(next);
   };
