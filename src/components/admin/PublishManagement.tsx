@@ -605,7 +605,14 @@ function PublishRow({
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium line-clamp-1">{listing.title}</p>
+            <a
+              href={listing.sourceUrl ?? listing.videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium line-clamp-1 hover:underline hover:text-sea"
+            >
+              {listing.title}
+            </a>
             <p className="text-[11px] text-muted-jeju truncate">
               {listing.region} · {listing.addressText.slice(0, 28)}
             </p>
