@@ -81,29 +81,41 @@ async function parseBlogPost(blogId: string, logNo: string): Promise<{ body: str
     const url = `https://m.blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`;
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; TamnaBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
         "Referer": "https://m.blog.naver.com/",
+        "Accept-Language": "ko-KR,ko;q=0.9",
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return { body: "", images: [] };
     const html = await res.text();
 
-    // 본문 텍스트 추출 (se-main-container 또는 postViewArea)
+    // og:image — 가장 확실한 썸네일
+    const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+    const ogImage = ogMatch?.[1] ?? "";
+
+    // 본문 텍스트 추출
     const bodyMatch = html.match(/class="se-main-container"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/);
     const rawBody = bodyMatch?.[1] ?? html.slice(0, 8000);
     const body = stripHtml(rawBody).slice(0, 3000);
 
-    // 이미지 추출 — postfiles.pstatic.net 우선, 최대 3장
-    const imgRe = /https:\/\/[^\s"'<>]*(?:postfiles\.pstatic\.net|blogfiles\.pstatic\.net)[^\s"'<>]*/g;
+    // 이미지 추출 — 네이버 이미지 도메인 전체 커버
+    const imgRe = /https?:\/\/[^\s"'<>]*(?:postfiles\.pstatic\.net|blogfiles\.pstatic\.net|blogpfthumb\.pstatic\.net|mblogthumb[^"'<>\s]*\.pstatic\.net)[^\s"'<>]*/g;
     const imgSet = new Set<string>();
+    // og:image 먼저
+    if (ogImage && !ogImage.includes("default") && !ogImage.includes("noimg")) {
+      imgSet.add(ogImage.replace(/&amp;/g, "&"));
+    }
     let m;
     while ((m = imgRe.exec(html)) !== null && imgSet.size < 3) {
       const src = m[0].replace(/&amp;/g, "&");
-      if (!src.includes("profile") && !src.includes("icon")) imgSet.add(src);
+      if (!src.includes("profile") && !src.includes("icon") && !src.includes("default")) {
+        imgSet.add(src);
+      }
     }
 
-    return { body, images: [...imgSet] };
+    return { body, images: [...imgSet].slice(0, 3) };
   } catch {
     return { body: "", images: [] };
   }
