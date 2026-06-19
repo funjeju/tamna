@@ -12,10 +12,11 @@ interface FeaturedBannerProps {
   listings: Listing[];
   loading?: boolean;
   isFallback?: boolean;
+  isPadded?: boolean;
   onOpen: (id: string) => void;
 }
 
-export function FeaturedBanner({ listings, loading, isFallback, onOpen }: FeaturedBannerProps) {
+export function FeaturedBanner({ listings, loading, isFallback, isPadded, onOpen }: FeaturedBannerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
@@ -61,7 +62,7 @@ export function FeaturedBanner({ listings, loading, isFallback, onOpen }: Featur
             <Badge variant="outline" className="border-stone/60 text-[10px] text-muted-foreground">
               최신 추천
             </Badge>
-          ) : (
+          ) : isPadded ? null : (
             <Badge className="border-transparent bg-tangerine/90 text-[10px] text-tangerine-foreground">
               <Sparkles className="size-2.5" aria-hidden="true" /> 광고
             </Badge>

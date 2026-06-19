@@ -100,7 +100,7 @@ export function PublicApp() {
   const favCount = favQuery.data?.favorites?.length ?? 0;
 
   // 주목할 매물 (광고/추천 배너)
-  const featuredQuery = useQuery<{ listings: Listing[]; isFallback: boolean }>({
+  const featuredQuery = useQuery<{ listings: Listing[]; isFallback: boolean; isPadded?: boolean }>({
     queryKey: ["featured"],
     queryFn: async () => {
       const res = await fetch("/api/featured", { cache: "no-store" });
@@ -307,6 +307,7 @@ export function PublicApp() {
                 listings={featuredQuery.data?.listings ?? []}
                 loading={featuredQuery.isLoading}
                 isFallback={featuredQuery.data?.isFallback}
+                isPadded={featuredQuery.data?.isPadded}
                 onOpen={handleOpenListing}
               />
 

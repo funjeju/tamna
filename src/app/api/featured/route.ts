@@ -9,6 +9,7 @@ import type { Listing } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 const LIMIT = 6;
+const MIN_VISIBLE = 3; // 배너에 최소 3개는 보이도록 최신 매물로 보강
 
 function ts(l: Listing): number {
   const s = l.publishedAt2 ?? l.collectedAt;
@@ -46,16 +47,29 @@ export async function GET() {
       .sort((a, b) => ts(b) - ts(a));
   }
 
+  const matchedCount = picked.length;
   let isFallback = false;
-  if (picked.length === 0) {
+  let isPadded = false;
+
+  if (matchedCount === 0) {
     // 매칭 매물이 없으면 최신매물로 폴백 (배너가 비지 않도록)
     isFallback = true;
     picked = [...all].sort((a, b) => ts(b) - ts(a));
+  } else if (matchedCount < MIN_VISIBLE) {
+    // 매칭이 3개 미만이면 최신 매물로 자리를 채움 (지정 매물은 앞에 고정)
+    isPadded = true;
+    const have = new Set(picked.map((l) => l.id));
+    const fillers = [...all]
+      .filter((l) => !have.has(l.id))
+      .sort((a, b) => ts(b) - ts(a));
+    picked = [...picked, ...fillers].slice(0, MIN_VISIBLE);
   }
 
   return NextResponse.json({
     listings: picked.slice(0, LIMIT),
     isFallback,
+    isPadded,
+    matchedCount,
     config: cfg,
   });
 }
