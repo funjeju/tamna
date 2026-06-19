@@ -566,6 +566,7 @@ export function PublishManagement() {
             <ListingEditPanel
               key={editTarget.id}
               listing={editTarget}
+              mode="edit"
               onClose={() => setEditTarget(null)}
             />
           )}

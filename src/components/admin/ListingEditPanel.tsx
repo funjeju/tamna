@@ -70,6 +70,8 @@ interface ListingEditPanelProps {
   onClose?: () => void;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  /** "review" = 검수큐 (승인/반려 표시), "edit" = 게시관리 편집 (저장만) */
+  mode?: "review" | "edit";
 }
 
 export function ListingEditPanel({
@@ -77,6 +79,7 @@ export function ListingEditPanel({
   onClose,
   onApprove,
   onReject,
+  mode = "review",
 }: ListingEditPanelProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -119,8 +122,7 @@ export function ListingEditPanel({
     onSettled: () => setTimeout(() => setSaving(false), 300),
     onSuccess: (data) => {
       setForm(data.listing);
-      queryClient.invalidateQueries({ queryKey: ["listings", "draft"] });
-      queryClient.invalidateQueries({ queryKey: ["listings", "all"] });
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
     },
     onError: () => {
       toast({
@@ -319,6 +321,7 @@ export function ListingEditPanel({
             onUpload={(url) => {
               setForm((f) => ({ ...f, thumbnailUrl: url }));
               patchMutation.mutate({ thumbnailUrl: url });
+              toast({ title: "썸네일 저장됨" });
             }}
             onRemove={() => {
               setForm((f) => ({ ...f, thumbnailUrl: "" }));
@@ -340,6 +343,7 @@ export function ListingEditPanel({
                     next[idx] = url;
                     setExtraImages(next);
                     patchMutation.mutate({ images: next.filter(Boolean) });
+                    toast({ title: `이미지 ${idx + 1} 저장됨` });
                   }}
                   onRemove={() => {
                     const next = [...extraImages];
@@ -689,48 +693,61 @@ export function ListingEditPanel({
 
       {/* 액션 푸터 */}
       <div className="border-t border-stone/40 p-3 space-y-2 bg-paper/40">
-        <div className="flex gap-2">
-          <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="flex-1 bg-tangerine hover:bg-tangerine/90 text-tangerine-foreground disabled:opacity-40"
-                    disabled={!gate.ok || actionMutation.isPending}
-                    onClick={handleApprove}
-                  >
-                    <ThumbsUp className="size-4" /> 승인·게시
-                  </Button>
-                </TooltipTrigger>
-                {!gate.ok && (
-                  <TooltipContent side="top">
-                    <ul className="space-y-0.5">
-                      {gate.reasons.map((r) => (
-                        <li key={r}>· {r}</li>
-                      ))}
-                    </ul>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-          <Button
-            variant="outline"
-            disabled={actionMutation.isPending}
-            onClick={() => setRejectOpen(true)}
-            className="text-destructive hover:text-destructive"
-          >
-            <ThumbsDown className="size-4" /> 반려
-          </Button>
-        </div>
-        {form.status === "error" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-sea"
-            disabled={actionMutation.isPending}
-            onClick={handleRetry}
-          >
-            <RefreshCw className="size-3.5" /> 재시도 (구조화 재실행)
-          </Button>
+        {mode === "edit" ? (
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-muted-jeju">
+              {saving ? "저장 중..." : "모든 변경사항 자동 저장"}
+            </span>
+            <Button variant="outline" size="sm" onClick={onClose}>
+              닫기
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="flex-1 bg-tangerine hover:bg-tangerine/90 text-tangerine-foreground disabled:opacity-40"
+                      disabled={!gate.ok || actionMutation.isPending}
+                      onClick={handleApprove}
+                    >
+                      <ThumbsUp className="size-4" /> 승인·게시
+                    </Button>
+                  </TooltipTrigger>
+                  {!gate.ok && (
+                    <TooltipContent side="top">
+                      <ul className="space-y-0.5">
+                        {gate.reasons.map((r) => (
+                          <li key={r}>· {r}</li>
+                        ))}
+                      </ul>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+              <Button
+                variant="outline"
+                disabled={actionMutation.isPending}
+                onClick={() => setRejectOpen(true)}
+                className="text-destructive hover:text-destructive"
+              >
+                <ThumbsDown className="size-4" /> 반려
+              </Button>
+            </div>
+            {form.status === "error" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-sea"
+                disabled={actionMutation.isPending}
+                onClick={handleRetry}
+              >
+                <RefreshCw className="size-3.5" /> 재시도 (구조화 재실행)
+              </Button>
+            )}
+          </>
         )}
       </div>
 
