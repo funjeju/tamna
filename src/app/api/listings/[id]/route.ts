@@ -46,6 +46,7 @@ export async function PATCH(
     "propertyType",
     "dealType",
     "confidence",
+    "thumbnailUrl",
   ];
   for (const k of editable) {
     if (body[k] !== undefined) data[k] = body[k];
@@ -55,6 +56,7 @@ export async function PATCH(
   if (body.keywords !== undefined)
     data.keywords = JSON.stringify(body.keywords);
   if (body.themes !== undefined) data.themes = JSON.stringify(body.themes);
+  if (body.images !== undefined) data.images = JSON.stringify(body.images);
 
   const updated = await db.listing.update({
     where: { id },
