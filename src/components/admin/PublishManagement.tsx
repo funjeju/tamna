@@ -11,6 +11,7 @@ import {
   Filter,
   GitMerge,
   Layers,
+  Pencil,
   RefreshCw,
   Search,
   Tags,
@@ -44,6 +45,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +63,7 @@ import {
 } from "@/lib/types";
 import { REGION_NAMES } from "@/lib/regions";
 import type { Listing, ListingStatus, Theme } from "@/lib/types";
+import { ListingEditPanel } from "./ListingEditPanel";
 
 type StatusTab = "published" | "rejected" | "opted_out" | "error";
 
@@ -82,6 +90,7 @@ export function PublishManagement() {
   const [takedownTarget, setTakedownTarget] = useState<Listing | null>(null);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [themeTarget, setThemeTarget] = useState<Listing | null>(null);
+  const [editTarget, setEditTarget] = useState<Listing | null>(null);
   const [newPriceManwon, setNewPriceManwon] = useState("");
   const [takedownReason, setTakedownReason] = useState("");
 
@@ -397,6 +406,7 @@ export function PublishManagement() {
                         setNewPriceManwon(String(l.priceManwon || ""));
                       }}
                       onThemeRetag={() => setThemeTarget(l)}
+                      onEdit={() => setEditTarget(l)}
                       onMerge={() =>
                         toast({
                           title: "중복 병합 (더미)",
@@ -545,6 +555,22 @@ export function PublishManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 게시물 편집 슬라이드오버 */}
+      <Sheet open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
+          <SheetHeader className="sr-only">
+            <SheetTitle>게시물 편집</SheetTitle>
+          </SheetHeader>
+          {editTarget && (
+            <ListingEditPanel
+              key={editTarget.id}
+              listing={editTarget}
+              onClose={() => setEditTarget(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -555,12 +581,14 @@ function PublishRow({
   onPriceUpdate,
   onThemeRetag,
   onMerge,
+  onEdit,
 }: {
   listing: Listing;
   onTakedown: () => void;
   onPriceUpdate: () => void;
   onThemeRetag: () => void;
   onMerge: () => void;
+  onEdit: () => void;
 }) {
   return (
     <TableRow className={`hover:bg-paper/40 border-l-[3px] ${listing.sourceType === "blog" ? "border-l-emerald-500" : "border-l-red-500"}`}>
@@ -638,6 +666,9 @@ function PublishRow({
         <div className="flex items-center justify-end gap-1">
           {listing.status === "published" && (
             <>
+              <Button size="sm" variant="ghost" onClick={onEdit} aria-label="편집">
+                <Pencil className="size-3.5 text-sea" />
+              </Button>
               <Button size="sm" variant="ghost" onClick={onPriceUpdate} aria-label="가격 갱신">
                 <Coins className="size-3.5 text-tangerine" />
               </Button>
