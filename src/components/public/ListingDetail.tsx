@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   BadgeCheck,
+  BookOpen,
   Building2,
   CalendarClock,
+  ExternalLink,
   Heart,
   Link2,
   MapPin,
@@ -136,6 +138,14 @@ export function ListingDetail({
   const just = isJustPublished(listing);
   const dropped = hasPriceDrop(listing);
   const drop = dropped ? lastPriceDrop(listing) : null;
+  const isBlog = listing.sourceType === "blog";
+  // 블로그 상세 — 썸네일(수동 우선) + 본문 이미지를 중복 제거해 갤러리로
+  const blogImages = isBlog
+    ? [
+        ...(listing.thumbnailUrl ? [listing.thumbnailUrl] : []),
+        ...(listing.images ?? []),
+      ].filter((v, i, a) => v && a.indexOf(v) === i)
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -184,7 +194,11 @@ export function ListingDetail({
               <>
                 <span aria-hidden="true">·</span>
                 <span className="inline-flex items-center gap-1">
-                  <Youtube className="size-3" aria-hidden="true" />
+                  {isBlog ? (
+                    <BookOpen className="size-3" aria-hidden="true" />
+                  ) : (
+                    <Youtube className="size-3" aria-hidden="true" />
+                  )}
                   {listing.agent.channelName}
                 </span>
               </>
@@ -192,32 +206,41 @@ export function ListingDetail({
           </DialogDescription>
         </DialogHeader>
 
-        {/* 유튜브 — 모달 전체 폭으로 꽉 채움 */}
-        <div className="w-full bg-black">
-          <div className="relative aspect-video w-full">
-            {listing.videoId ? (
-              <iframe
-                src={`https://www.youtube.com/embed/${listing.videoId}`}
-                title={`${listing.title} 영상`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                loading="lazy"
-                className="absolute inset-0 h-full w-full"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <PlayCircle className="size-12 opacity-50" />
-              </div>
-            )}
+        {/* 미디어 — 블로그는 이미지 갤러리, 유튜브는 임베드 */}
+        {isBlog ? (
+          <BlogMedia
+            images={blogImages}
+            title={listing.title}
+            sourceUrl={listing.sourceUrl ?? listing.videoUrl}
+          />
+        ) : (
+          <div className="w-full bg-black">
+            <div className="relative aspect-video w-full">
+              {listing.videoId ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${listing.videoId}`}
+                  title={`${listing.title} 영상`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <PlayCircle className="size-12 opacity-50" />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid gap-0 md:grid-cols-2">
           {/* 좌측 — 지도 / 안내 */}
           <div className="flex flex-col gap-2 p-5">
             <p className="text-[10px] leading-relaxed text-muted-foreground">
-              ※ 본 영상은 YouTube 공개 영상을 임베드 방식으로만 재생합니다.
-              재호스팅하지 않으며, 모든 저작권은 원 채널 소유자에게 있습니다.
+              {isBlog
+                ? "※ 본 매물 정보는 네이버 블로그 공개 글을 요약·정리한 것입니다. 자세한 내용과 원본 이미지는 원문에서 확인하세요. 모든 저작권은 원 작성자에게 있습니다."
+                : "※ 본 영상은 YouTube 공개 영상을 임베드 방식으로만 재생합니다. 재호스팅하지 않으며, 모든 저작권은 원 채널 소유자에게 있습니다."}
             </p>
 
             {/* 미니 지도 — 카카오 */}
@@ -390,7 +413,11 @@ export function ListingDetail({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-1.5">
-                      <Youtube className="size-4 text-tangerine" aria-hidden="true" />
+                      {isBlog ? (
+                        <BookOpen className="size-4 text-emerald-600" aria-hidden="true" />
+                      ) : (
+                        <Youtube className="size-4 text-tangerine" aria-hidden="true" />
+                      )}
                       <span className="truncate font-semibold text-basalt">
                         {listing.agent.channelName}
                       </span>
@@ -437,7 +464,7 @@ export function ListingDetail({
                         className="border-sea/50 text-sea"
                       >
                         <Link2 className="size-3.5" aria-hidden="true" />
-                        채널 방문
+                        {isBlog ? "블로그 방문" : "채널 방문"}
                       </Button>
                     </a>
                   ) : null}
@@ -499,6 +526,82 @@ export function ListingDetail({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function BlogMedia({
+  images,
+  title,
+  sourceUrl,
+}: {
+  images: string[];
+  title: string;
+  sourceUrl?: string;
+}) {
+  const [active, setActive] = useState(0);
+  const [broken, setBroken] = useState<Record<number, boolean>>({});
+  const hero = images[active];
+  const heroBroken = !hero || broken[active];
+
+  return (
+    <div className="w-full bg-emerald-50 dark:bg-emerald-950/20">
+      <div className="relative aspect-video w-full bg-black/5">
+        {!heroBroken ? (
+          <img
+            src={hero}
+            alt={title}
+            loading="lazy"
+            onError={() => setBroken((b) => ({ ...b, [active]: true }))}
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-emerald-700/60 dark:text-emerald-200/50">
+            <BookOpen className="size-12 opacity-40" aria-hidden="true" />
+            <span className="text-xs">이미지가 없거나 불러올 수 없습니다</span>
+          </div>
+        )}
+        {sourceUrl ? (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-full bg-emerald-600/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm backdrop-blur transition hover:bg-emerald-600"
+          >
+            <BookOpen className="size-3.5" aria-hidden="true" />
+            블로그 원문 보기
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        ) : null}
+      </div>
+
+      {/* 썸네일 스트립 — 2장 이상일 때 */}
+      {images.length > 1 ? (
+        <div className="flex gap-1.5 overflow-x-auto p-2 scroll-thin">
+          {images.map((src, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setActive(i)}
+              className={cn(
+                "relative aspect-video w-20 shrink-0 overflow-hidden rounded border-2 transition",
+                i === active
+                  ? "border-emerald-500"
+                  : "border-transparent opacity-70 hover:opacity-100",
+              )}
+              aria-label={`이미지 ${i + 1} 보기`}
+            >
+              <img
+                src={src}
+                alt=""
+                loading="lazy"
+                onError={() => setBroken((b) => ({ ...b, [i]: true }))}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
