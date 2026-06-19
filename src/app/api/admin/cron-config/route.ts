@@ -10,11 +10,20 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const trigger = req.nextUrl.searchParams.get("trigger") as "youtube" | "blog" | null;
+  const trigger = req.nextUrl.searchParams.get("trigger") as
+    | "youtube"
+    | "blog"
+    | "rotation"
+    | null;
 
-  // 즉시 수집 트리거
-  if (trigger === "youtube" || trigger === "blog") {
-    const path = trigger === "youtube" ? "/api/cron/collect" : "/api/cron/collect-blog";
+  // 즉시 수집 트리거 — 서버에서 CRON_SECRET을 붙여 cron 라우트 호출
+  if (trigger === "youtube" || trigger === "blog" || trigger === "rotation") {
+    const path =
+      trigger === "youtube"
+        ? "/api/cron/collect"
+        : trigger === "blog"
+          ? "/api/cron/collect-blog"
+          : "/api/cron/collect-rotation";
     const base = req.nextUrl.origin;
     const res = await fetch(`${base}${path}?force=true`, {
       headers: {

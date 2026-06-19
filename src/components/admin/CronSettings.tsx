@@ -103,17 +103,18 @@ export function CronSettings() {
     else if (source === "blog") setTriggeringBlog(true);
     else setTriggeringRotation(true);
     try {
-      const path = source === "rotation"
-        ? "/api/cron/collect-rotation?force=true"
-        : `/api/admin/cron-config?trigger=${source}`;
-      const res = await fetch(path, { method: source === "rotation" ? "GET" : "POST" });
+      // 셋 다 서버 경유 — 서버가 CRON_SECRET을 붙여 cron 라우트를 호출한다.
+      const res = await fetch(`/api/admin/cron-config?trigger=${source}`, {
+        method: "POST",
+      });
       const d = await res.json();
       const label = source === "youtube" ? "유튜브" : source === "blog" ? "블로그" : "읍면동 로테이션";
+      // rotation 응답은 { result: { result: { processedRegions } } } 로 한 단계 더 들어간다.
+      const regions =
+        d.result?.result?.processedRegions ?? d.result?.processedRegions;
       toast({
         title: `${label} 수집 시작`,
-        description: d.result?.processedRegions
-          ? `${d.result.processedRegions.join(", ")} 처리`
-          : "백그라운드 실행 중",
+        description: regions ? `${regions.join(", ")} 처리` : "백그라운드 실행 중",
       });
       qc.invalidateQueries({ queryKey: ["cron-config"] });
       qc.invalidateQueries({ queryKey: ["listings"] });
