@@ -63,13 +63,19 @@ function extractVocab(msg: string) {
   return { regions, propertyTypes: [...propSet], dealTypes, themes };
 }
 
-// ── 가격/면적 정규식 파서 (LLM 폴백 겸 보강) ──
-// "3억", "3억5천", "5천만원", "5000만원" → 만원 정수
+// ── 가격/면적 정규식 파서 ──
+// 금액 토큰 패턴(단위 필수): "3억", "3억5천", "5천만원", "5000만원"
+const AMT = String.raw`\d[\d.,]*\s*억(?:\s*\d[\d.,]*\s*천)?(?:\s*\d[\d.,]*\s*만)?원?|\d[\d.,]*\s*천만?\s*원?|\d[\d.,]*\s*만\s*원?`;
+
 function parseAmountKRW(s: string): number | null {
-  const m = s.match(/(?:(\d+(?:\.\d+)?)\s*억)?\s*(?:(\d+)\s*천)?\s*(?:(\d+(?:,\d{3})*)\s*만)?/);
+  // 문자열 어디에 있든 첫 금액 토큰을 찾아서 파싱 (앞에 텍스트가 있어도 동작)
+  const span = s.match(new RegExp(AMT));
+  if (!span) return null;
+  const t = span[0];
+  const m = t.match(/(?:(\d+(?:\.\d+)?)\s*억)?\s*(?:(\d+(?:\.\d+)?)\s*천)?\s*(?:(\d+(?:,\d{3})*)\s*만)?/);
   if (!m) return null;
   const eok = m[1] ? parseFloat(m[1]) : 0;
-  const cheon = m[2] ? parseInt(m[2], 10) : 0;
+  const cheon = m[2] ? parseFloat(m[2]) : 0;
   const man = m[3] ? parseInt(m[3].replace(/,/g, ""), 10) : 0;
   const total = Math.round(eok * 10000 + cheon * 1000 + man);
   return total > 0 ? total : null;
@@ -78,7 +84,7 @@ function parsePriceRegex(msg: string): { priceMin: number | null; priceMax: numb
   let priceMin: number | null = null;
   let priceMax: number | null = null;
   // 범위: "2억~4억", "2억에서 4억"
-  const range = msg.match(/(\d[\d.억천만,\s]*?)\s*(?:~|-|에서|부터)\s*(\d[\d.억천만,\s]*?만?원?)\s*(?:사이|이내)?/);
+  const range = msg.match(new RegExp(`(${AMT})\\s*(?:~|-|–|에서|부터)\\s*(${AMT})`));
   if (range) {
     priceMin = parseAmountKRW(range[1]);
     priceMax = parseAmountKRW(range[2]);
@@ -181,6 +187,17 @@ export async function POST(req: NextRequest) {
   const hasAny =
     f.regions.length || f.propertyTypes.length || f.dealTypes.length ||
     f.themes.length || f.priceMin || f.priceMax || f.areaMin || f.areaMax || f.q;
+
+  // 조건이 하나도 안 잡히면(인사·잡담 포함) 전체를 덤프하지 않고 안내
+  if (!hasAny) {
+    return NextResponse.json({
+      reply:
+        "지역·가격·유형으로 찾아드려요. 예: \"애월 바다뷰 3억 이하 단독주택\", \"한림 토지 매매\", \"급매 전원주택\".",
+      listings: [],
+      filters: null,
+      totalCount: 0,
+    });
+  }
 
   // 매물 조회 — 기존 /api/listings 재사용
   const path = buildListingsQuery({
