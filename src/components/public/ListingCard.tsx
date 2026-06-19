@@ -176,7 +176,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
         {/* 우하단 유튜브 업로드 경과 시간 (강조) */}
         <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-basalt/85 px-2 py-0.5 text-[11px] font-semibold text-paper backdrop-blur">
           <Clock className="size-3 text-sea-foreground" aria-hidden="true" />
-          {formatRelativeTime(listing.publishedAt)}
+          {formatRelativeTime(listing.publishedAt2 ?? listing.publishedAt)}
         </div>
       </div>
 
