@@ -47,6 +47,14 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
   const dropped = hasPriceDrop(listing);
   const drop = dropped ? lastPriceDrop(listing) : null;
 
+  // 운영자가 관리자에서 교체한 수동 썸네일 여부 —
+  // 블로그 수집기는 thumbnailUrl = images[0]로 저장하므로, 둘이 다르면 수동 교체로 간주.
+  // (자동수집 네이버 pstatic 이미지는 핫링크 차단으로 외부 도메인에서 깨짐)
+  const blogManualThumb =
+    listing.sourceType === "blog" &&
+    !!listing.thumbnailUrl &&
+    (!listing.images?.length || listing.thumbnailUrl !== listing.images[0]);
+
   const handleFav = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -101,7 +109,17 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
       {listing.sourceType === "blog" ? (
         /* ── 블로그 카드 상단: 이미지 그리드 or 정보 패널 ── */
         <div className="relative aspect-video w-full overflow-hidden bg-emerald-50 dark:bg-emerald-950/30">
-          {listing.images && listing.images.length > 0 ? (
+          {blogManualThumb && !imgError ? (
+            /* 운영자 수동 썸네일 최우선 */
+            <img
+              src={listing.thumbnailUrl}
+              alt={listing.title}
+              loading="lazy"
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+            />
+          ) : listing.images && listing.images.length > 0 ? (
             /* 이미지 있으면 — 1장이면 풀블리드, 2~3장이면 그리드 */
             listing.images.length === 1 ? (
               <img
