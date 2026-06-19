@@ -1,5 +1,5 @@
 // POST /api/chat — 매물 검색 챗봇
-// 자연어 질문 → Gemini로 구조화 필터 추출 → 기존 /api/listings 조회 →
+// 자연어 질문 → 결정적 어휘 매칭 + 정규식(가격/면적) 파싱 → 기존 /api/listings 조회 →
 // 매물에만 근거한 답변 + 카드용 매물 배열 반환. (할루시네이션 방지: 답변은 조회 결과만 근거)
 import { NextRequest, NextResponse } from "next/server";
 import { buildListingsQuery, formatPrice } from "@/lib/public/format";
@@ -7,11 +7,8 @@ import { REGION_NAMES } from "@/lib/regions";
 import { PROPERTY_TYPES, DEAL_TYPES, THEMES } from "@/lib/types";
 import type { Listing } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 30;
 export const dynamic = "force-dynamic";
-
-const GEMINI_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const CARD_LIMIT = 4;
 
@@ -34,70 +31,112 @@ const EMPTY: ParsedFilters = {
   areaMin: null, areaMax: null, themes: [], q: null, sort: null, offtopic: false,
 };
 
-// ── Gemini로 자연어 → 필터 ──
+// ── 닫힌 어휘는 메시지에서 직접 매칭 (LLM보다 정확·빠름) ──
+// 지역: "노형·연동" 등은 부분 별칭으로도 매칭
+function regionAliases(name: string): string[] {
+  const parts = name.split("·").map((s) => s.trim()).filter(Boolean);
+  const set = new Set([name, ...parts]);
+  if (name === "노형·연동") ["신제주"].forEach((a) => set.add(a));
+  return [...set];
+}
+// 테마 별칭
+function themeAliases(name: string): string[] {
+  const map: Record<string, string[]> = {
+    "세컨하우스": ["세컨하우스", "세컨드하우스", "세컨"],
+    "한달살기": ["한달살기", "한달 살기", "한달살이", "한 달 살기"],
+    "돌집·구옥": ["돌집", "구옥", "돌담집"],
+    "바다뷰": ["바다뷰", "오션뷰", "바다 뷰", "씨뷰"],
+    "읍면 단독": ["읍면 단독", "읍면단독"],
+    "급매": ["급매", "급처"],
+  };
+  return map[name] ?? [name];
+}
+
+function extractVocab(msg: string) {
+  const regions = REGION_NAMES.filter((r) => regionAliases(r).some((a) => msg.includes(a)));
+  const propSet = new Set(
+    (PROPERTY_TYPES as string[]).filter((p) => msg.includes(p)),
+  );
+  if (msg.includes("땅")) propSet.add("토지");
+  const dealTypes = (DEAL_TYPES as string[]).filter((d) => msg.includes(d));
+  const themes = (THEMES as string[]).filter((t) => themeAliases(t).some((a) => msg.includes(a)));
+  return { regions, propertyTypes: [...propSet], dealTypes, themes };
+}
+
+// ── 가격/면적 정규식 파서 (LLM 폴백 겸 보강) ──
+// "3억", "3억5천", "5천만원", "5000만원" → 만원 정수
+function parseAmountKRW(s: string): number | null {
+  const m = s.match(/(?:(\d+(?:\.\d+)?)\s*억)?\s*(?:(\d+)\s*천)?\s*(?:(\d+(?:,\d{3})*)\s*만)?/);
+  if (!m) return null;
+  const eok = m[1] ? parseFloat(m[1]) : 0;
+  const cheon = m[2] ? parseInt(m[2], 10) : 0;
+  const man = m[3] ? parseInt(m[3].replace(/,/g, ""), 10) : 0;
+  const total = Math.round(eok * 10000 + cheon * 1000 + man);
+  return total > 0 ? total : null;
+}
+function parsePriceRegex(msg: string): { priceMin: number | null; priceMax: number | null } {
+  let priceMin: number | null = null;
+  let priceMax: number | null = null;
+  // 범위: "2억~4억", "2억에서 4억"
+  const range = msg.match(/(\d[\d.억천만,\s]*?)\s*(?:~|-|에서|부터)\s*(\d[\d.억천만,\s]*?만?원?)\s*(?:사이|이내)?/);
+  if (range) {
+    priceMin = parseAmountKRW(range[1]);
+    priceMax = parseAmountKRW(range[2]);
+    if (priceMin && priceMax) return { priceMin, priceMax };
+  }
+  // "N억대" → N억 이상 (N+1)억 미만
+  const band = msg.match(/(\d+(?:\.\d+)?)\s*억\s*대/);
+  if (band) {
+    const n = parseFloat(band[1]);
+    return { priceMin: Math.round(n * 10000), priceMax: Math.round((n + 1) * 10000) };
+  }
+  const amt = parseAmountKRW(msg);
+  if (amt) {
+    if (/이하|미만|이내|아래|under|밑/.test(msg)) priceMax = amt;
+    else if (/이상|초과|넘|over|위/.test(msg)) priceMin = amt;
+    else priceMax = amt; // 단순 "3억 매물"이면 상한으로 해석
+  }
+  return { priceMin, priceMax };
+}
+function parseAreaRegex(msg: string): { areaMin: number | null; areaMax: number | null } {
+  let areaMin: number | null = null;
+  let areaMax: number | null = null;
+  const m = msg.match(/(\d+)\s*평/);
+  if (m) {
+    const v = parseInt(m[1], 10);
+    if (/이상|넘|초과|위/.test(msg)) areaMin = v;
+    else if (/이하|미만|이내|아래/.test(msg)) areaMax = v;
+    else areaMin = v;
+  }
+  return { areaMin, areaMax };
+}
+function parseSort(msg: string): ParsedFilters["sort"] {
+  if (/싸|저렴|낮은|싼|저가/.test(msg)) return "price_asc";
+  if (/비싼|높은|고가|비싸/.test(msg)) return "price_desc";
+  if (/넓은|큰|대형/.test(msg)) return "area";
+  return null;
+}
+
+// ── 자연어 → 필터 (어휘는 결정적, 가격/면적은 정규식, LLM은 선택적 보강) ──
 async function parseQuery(message: string): Promise<ParsedFilters> {
-  if (!GEMINI_KEY) {
-    // 키 없으면 메시지를 그대로 자유 검색어로
-    return { ...EMPTY, q: message.slice(0, 40) };
-  }
-  const prompt = `너는 제주 부동산 매물 검색 질의를 구조화 필터로 변환하는 파서다.
-사용자 메시지를 분석해 JSON 하나만 출력해라. 설명/마크다운 금지.
+  const vocab = extractVocab(message);
+  const price = parsePriceRegex(message);
+  const area = parseAreaRegex(message);
+  const sort = parseSort(message);
 
-[사용자 메시지] ${message}
-
-규칙:
-- regions: 다음 중 해당하는 지역명 배열(없으면 []). 후보: ${REGION_NAMES.join(", ")}
-- propertyTypes: 다음 중 배열(없으면 []). 후보: ${PROPERTY_TYPES.join(", ")}
-- dealTypes: 다음 중 배열(없으면 []). 후보: ${DEAL_TYPES.join(", ")}
-- priceMin/priceMax: 만원 단위 정수 또는 null. 예: "3억 이하" → priceMax 30000, priceMin null. "2억~4억" → priceMin 20000, priceMax 40000. "5천만원 이하" → priceMax 5000.
-- areaMin/areaMax: 평 단위 정수 또는 null. 예: "30평 이상" → areaMin 30.
-- themes: 다음 중 배열(없으면 []). 후보: ${THEMES.join(", ")}
-- q: 위 필터로 안 잡히는 가장 핵심적인 자유 키워드 한 단어(예: 바다뷰, 돌집, 신축). 없으면 null.
-- sort: "싼/저렴/낮은가격"이면 "price_asc", "비싼/높은가격"이면 "price_desc", "넓은/큰"이면 "area", 그 외 null.
-- offtopic: 제주 매물 검색과 무관한 질문(인사 제외 잡담, 일반 상식 등)이면 true, 아니면 false.
-
-출력 JSON 스키마:
-{"regions":[str],"propertyTypes":[str],"dealTypes":[str],"priceMin":int|null,"priceMax":int|null,"areaMin":int|null,"areaMax":int|null,"themes":[str],"q":str|null,"sort":str|null,"offtopic":bool}`;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
-      }),
-    });
-    if (!res.ok) return { ...EMPTY, q: message.slice(0, 40) };
-    const data = await res.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return { ...EMPTY, q: message.slice(0, 40) };
-    const p = JSON.parse(text);
-    // 화이트리스트 정제
-    return {
-      regions: arr(p.regions).filter((x) => REGION_NAMES.includes(x)),
-      propertyTypes: arr(p.propertyTypes).filter((x) => (PROPERTY_TYPES as string[]).includes(x)),
-      dealTypes: arr(p.dealTypes).filter((x) => (DEAL_TYPES as string[]).includes(x)),
-      priceMin: num(p.priceMin),
-      priceMax: num(p.priceMax),
-      areaMin: num(p.areaMin),
-      areaMax: num(p.areaMax),
-      themes: arr(p.themes).filter((x) => (THEMES as string[]).includes(x)),
-      q: typeof p.q === "string" && p.q.trim() ? p.q.trim().slice(0, 40) : null,
-      sort: ["latest", "price_asc", "price_desc", "area"].includes(p.sort) ? p.sort : null,
-      offtopic: p.offtopic === true,
-    };
-  } catch {
-    return { ...EMPTY, q: message.slice(0, 40) };
-  }
-}
-
-function arr(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-}
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+  return {
+    regions: vocab.regions,
+    propertyTypes: vocab.propertyTypes,
+    dealTypes: vocab.dealTypes,
+    themes: vocab.themes,
+    priceMin: price.priceMin,
+    priceMax: price.priceMax,
+    areaMin: area.areaMin,
+    areaMax: area.areaMax,
+    q: null,
+    sort,
+    offtopic: false,
+  };
 }
 
 // ── 조건 요약 문구 (답변용, 결과에만 근거) ──
