@@ -58,7 +58,8 @@ export async function GET() {
   const failRate =
     totalFound > 0 ? Math.round((totalFailedRecent / totalFound) * 100) : 0;
 
-  return NextResponse.json({
+  return NextResponse.json(
+    {
     kpi: {
       total,
       published,
@@ -89,5 +90,7 @@ export async function GET() {
       startedAt: j.startedAt.toISOString(),
       finishedAt: j.finishedAt?.toISOString() ?? null,
     })),
-  });
+    },
+    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=180" } },
+  );
 }

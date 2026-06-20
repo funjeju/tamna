@@ -67,7 +67,13 @@ export async function GET(req: NextRequest) {
     list = list.filter((l) => themes.every((t) => l.themes.includes(t)));
   }
 
-  return NextResponse.json({ listings: list, total: list.length });
+  // 공개(게시중) 목록은 엣지 캐시 — 실시간성이 낮고 cron/관리자 변경은 짧은 지연 허용
+  const headers: Record<string, string> =
+    status === "published"
+      ? { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=180" }
+      : {};
+
+  return NextResponse.json({ listings: list, total: list.length }, { headers });
 }
 
 function getOrderBy(sort: ListingFilters["sort"]) {

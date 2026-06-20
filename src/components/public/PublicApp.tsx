@@ -67,7 +67,7 @@ export function PublicApp() {
         status: "published",
         limit: 200,
       });
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url);
       if (!res.ok) throw new Error("listings fetch failed");
       return res.json();
     },
@@ -79,7 +79,7 @@ export function PublicApp() {
   }>({
     queryKey: ["dashboard-public"],
     queryFn: async () => {
-      const res = await fetch("/api/dashboard", { cache: "no-store" });
+      const res = await fetch("/api/dashboard");
       if (!res.ok) throw new Error("dashboard fetch failed");
       return res.json();
     },
@@ -103,7 +103,7 @@ export function PublicApp() {
   const featuredQuery = useQuery<{ listings: Listing[]; isFallback: boolean; isPadded?: boolean }>({
     queryKey: ["featured"],
     queryFn: async () => {
-      const res = await fetch("/api/featured", { cache: "no-store" });
+      const res = await fetch("/api/featured");
       if (!res.ok) throw new Error("featured fetch failed");
       return res.json();
     },

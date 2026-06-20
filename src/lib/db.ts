@@ -25,9 +25,40 @@ function deserialize(id: string, data: Row): Row {
   return out;
 }
 
+// ── 컬렉션 전량 로드 캐시 (warm 인스턴스 내 짧은 TTL + 동시요청 dedupe) ──
+// 한 요청이 같은 컬렉션을 여러 번(예: dashboard의 count 16회) 읽거나
+// 짧은 시간 내 반복 요청 시 Firestore 전체 읽기를 줄인다. 쓰기 시 무효화.
+const LOADALL_TTL_MS = 15_000;
+const _cache = new Map<string, { at: number; rows: Row[] }>();
+const _inflight = new Map<string, Promise<Row[]>>();
+
+function bustCache(coll: string): void {
+  _cache.delete(coll);
+  _inflight.delete(coll);
+}
+
 async function loadAll(coll: string): Promise<Row[]> {
-  const snap = await adminDb.collection(coll).get();
-  return snap.docs.map((d) => deserialize(d.id, d.data() as Row));
+  const hit = _cache.get(coll);
+  if (hit && Date.now() - hit.at < LOADALL_TTL_MS) return hit.rows;
+
+  let p = _inflight.get(coll);
+  if (!p) {
+    p = adminDb
+      .collection(coll)
+      .get()
+      .then((snap) => {
+        const rows = snap.docs.map((d) => deserialize(d.id, d.data() as Row));
+        _cache.set(coll, { at: Date.now(), rows });
+        _inflight.delete(coll);
+        return rows;
+      })
+      .catch((e) => {
+        _inflight.delete(coll);
+        throw e;
+      });
+    _inflight.set(coll, p);
+  }
+  return p;
 }
 
 async function getById(coll: string, id: string): Promise<Row | null> {
@@ -143,6 +174,7 @@ const listing = {
   }) {
     const data = { ...args.data, updatedAt: new Date() };
     await adminDb.collection(COL.listing).doc(args.where.id).set(data, { merge: true });
+    bustCache(COL.listing);
     const row = await getById(COL.listing, args.where.id);
     if (args.include?.agent && row)
       return (await attachAgentToListings([row]))[0];
@@ -158,6 +190,7 @@ const listing = {
         merge: true,
       });
     await batch.commit();
+    bustCache(COL.listing);
     return { count: rows.length };
   },
   async count(args: { where?: Where } = {}) {
@@ -168,6 +201,7 @@ const listing = {
     const id = args.data.id ?? newId(COL.listing);
     const { id: _omit, ...rest } = args.data;
     await adminDb.collection(COL.listing).doc(id).set(rest);
+    bustCache(COL.listing);
     return (await getById(COL.listing, id))!;
   },
 };
@@ -198,6 +232,7 @@ const agent = {
     await adminDb.collection(COL.agent).doc(args.where.id).set(args.data, {
       merge: true,
     });
+    bustCache(COL.agent);
     const row = await getById(COL.agent, args.where.id);
     if (args.include?._count && row) {
       const counts = await listingCountByChannel();
@@ -213,6 +248,7 @@ const agent = {
     const id = args.data.id ?? newId(COL.agent);
     const { id: _omit, ...rest } = args.data;
     await adminDb.collection(COL.agent).doc(id).set(rest);
+    bustCache(COL.agent);
     return (await getById(COL.agent, id))!;
   },
 };
@@ -243,6 +279,7 @@ const collectionJob = {
     const id = args.data.id ?? newId(COL.collectionJob);
     const { id: _omit, ...rest } = args.data;
     await adminDb.collection(COL.collectionJob).doc(id).set(rest);
+    bustCache(COL.collectionJob);
     return (await getById(COL.collectionJob, id))!;
   },
 };
@@ -257,10 +294,12 @@ const optOut = {
     if (!snap.empty) {
       const doc = snap.docs[0];
       await doc.ref.set(args.update, { merge: true });
+      bustCache(COL.optOut);
       return deserialize(doc.id, (await doc.ref.get()).data() as Row);
     }
     const id = newId(COL.optOut);
     await adminDb.collection(COL.optOut).doc(id).set(args.create);
+    bustCache(COL.optOut);
     return (await getById(COL.optOut, id))!;
   },
   async count(args: { where?: Where } = {}) {
@@ -271,6 +310,7 @@ const optOut = {
     const id = args.data.id ?? newId(COL.optOut);
     const { id: _omit, ...rest } = args.data;
     await adminDb.collection(COL.optOut).doc(id).set(rest);
+    bustCache(COL.optOut);
     return (await getById(COL.optOut, id))!;
   },
 };
@@ -320,6 +360,7 @@ const favorite = {
       .limit(1)
       .get();
     if (!snap.empty) await snap.docs[0].ref.delete();
+    bustCache(COL.favorite);
     return { count: snap.size };
   },
   async create(args: { data: Row }) {
@@ -328,6 +369,7 @@ const favorite = {
     if (!rest.savedAt) rest.savedAt = new Date();
     if (rest.userId == null) rest.userId = "guest";
     await adminDb.collection(COL.favorite).doc(id).set(rest);
+    bustCache(COL.favorite);
     return (await getById(COL.favorite, id))!;
   },
   async count(args: { where?: Where } = {}) {

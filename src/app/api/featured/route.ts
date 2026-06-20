@@ -65,13 +65,16 @@ export async function GET() {
     picked = [...picked, ...fillers].slice(0, MIN_VISIBLE);
   }
 
-  return NextResponse.json({
-    listings: picked.slice(0, LIMIT),
-    isFallback,
-    isPadded,
-    matchedCount,
-    config: cfg,
-  });
+  return NextResponse.json(
+    {
+      listings: picked.slice(0, LIMIT),
+      isFallback,
+      isPadded,
+      matchedCount,
+      config: cfg,
+    },
+    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=180" } },
+  );
 }
 
 export async function POST(req: NextRequest) {
