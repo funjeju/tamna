@@ -376,7 +376,14 @@ export function PublicApp() {
                   />
                 </header>
 
-                {latestListings.length === 0 ? (
+                {listingsQuery.isLoading ? (
+                  <ListingGrid
+                    listings={[]}
+                    loading
+                    cols={3}
+                    onOpen={handleOpenListing}
+                  />
+                ) : latestListings.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-stone/60 bg-paper/50 px-6 py-10 text-center text-sm text-muted-foreground">
                     최근 2일 이내 새 매물이 없습니다.
                   </p>

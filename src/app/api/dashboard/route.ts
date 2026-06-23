@@ -91,6 +91,6 @@ export async function GET() {
       finishedAt: j.finishedAt?.toISOString() ?? null,
     })),
     },
-    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=180" } },
+    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400" } },
   );
 }

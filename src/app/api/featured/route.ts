@@ -82,7 +82,7 @@ export async function GET() {
       matchedCount,
       config: cfg,
     },
-    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=180" } },
+    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400" } },
   );
 }
 
