@@ -4,12 +4,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bookmark, Compass, Heart, Search as SearchIcon } from "lucide-react";
+import { Bookmark, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import type { Listing, ListingFilters, Theme } from "@/lib/types";
+import { PUBLIC_MAX_AGE_DAYS } from "@/lib/types";
 import { buildListingsQuery } from "@/lib/public/format";
 import { authHeaders } from "@/lib/authToken";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -25,6 +26,7 @@ import { PublicFooter } from "./PublicFooter";
 import { ChatWidget } from "./ChatWidget";
 import { FeaturedBanner } from "./FeaturedBanner";
 import { SourceToggle, applySource, type SourceFilter } from "./SourceToggle";
+import { FilterPopover, countActive } from "./FilterPopover";
 
 type View = "home" | "search";
 
@@ -66,6 +68,7 @@ export function PublicApp() {
         ...filters,
         status: "published",
         limit: 200,
+        maxAgeDays: PUBLIC_MAX_AGE_DAYS,
       });
       const res = await fetch(url);
       if (!res.ok) throw new Error("listings fetch failed");
@@ -199,6 +202,8 @@ export function PublicApp() {
     e?.preventDefault();
     handleSearchSubmit(headerQ.trim());
   };
+
+  const filterCount = useMemo(() => countActive(filters), [filters]);
 
   const publishedCount = statsQuery.data?.kpi.published ?? 0;
   const todayCount = statsQuery.data?.kpi.todayCollected ?? 0;
@@ -420,7 +425,7 @@ export function PublicApp() {
 
               {/* 지도 + 그리드 레이아웃 */}
               <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-                <div className="order-2 lg:order-1 lg:sticky lg:top-20 lg:self-start">
+                <div className="order-1 lg:sticky lg:top-20 lg:self-start">
                   <KakaoMap
                     listings={sourcedListings}
                     onSelectListing={handleOpenListing}
@@ -428,7 +433,7 @@ export function PublicApp() {
                     className="min-h-[400px] md:min-h-[600px]"
                   />
                 </div>
-                <div className="order-1 lg:order-2">
+                <div className="order-2">
                   <ListingGrid
                     listings={sourcedListings}
                     loading={listingsQuery.isLoading}
@@ -469,6 +474,33 @@ export function PublicApp() {
         onOpenListing={handleOpenListing}
         currentFilters={filters}
       />
+
+      {/* 홈 플로팅 필터 — 지도뷰의 필터를 홈에서도 바로 */}
+      {view === "home" ? (
+        <div className="fixed bottom-5 left-5 z-40">
+          <FilterPopover
+            filters={filters}
+            onChange={setFilters}
+            onReset={handleReset}
+            align="start"
+            trigger={
+              <button
+                type="button"
+                aria-label="필터"
+                className="relative flex h-12 items-center gap-2 rounded-full border border-stone/50 bg-background px-5 text-sm font-medium text-basalt shadow-lg transition-all hover:shadow-xl"
+              >
+                <SlidersHorizontal className="size-4 text-sea" aria-hidden="true" />
+                필터
+                {filterCount > 0 ? (
+                  <Badge className="border-transparent bg-tangerine px-1.5 py-0 text-[10px] text-tangerine-foreground">
+                    {filterCount}
+                  </Badge>
+                ) : null}
+              </button>
+            }
+          />
+        </div>
+      ) : null}
 
       {/* 매물 검색 챗봇 (플로팅) */}
       <ChatWidget onOpenListing={handleOpenListing} />

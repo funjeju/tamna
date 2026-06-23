@@ -9,7 +9,6 @@ import {
   Clock,
   Inbox,
   Layers,
-  ListChecks,
   MapPin,
   RefreshCw,
   Search,
@@ -67,6 +66,7 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [batchOpen, setBatchOpen] = useState<null | "approve" | "reject">(null);
   const [forcePublish, setForcePublish] = useState(false);
+  const [scoreThreshold, setScoreThreshold] = useState(90);
 
   // 드래프트 매물 + 에러 매물 (재시도 대상)
   const { data, isLoading, isFetching } = useQuery<{ listings: Listing[]; total: number }>({
@@ -101,6 +101,34 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
   }, [data, sort]);
 
   const selected = listings.find((l) => l.id === selectedId) ?? null;
+
+  // 게시 게이트 미충족 매물 ID
+  const unmetIds = useMemo(
+    () => listings.filter((l) => !canPublishClient(l).ok).map((l) => l.id),
+    [listings],
+  );
+  const unmetIdSet = useMemo(() => new Set(unmetIds), [unmetIds]);
+  // 현재 선택분 중 미충족 건수 (강제 게시 필요)
+  const checkedUnmetCount = useMemo(
+    () => Array.from(checked).filter((id) => unmetIdSet.has(id)).length,
+    [checked, unmetIdSet],
+  );
+
+  const selectUnmet = () => setChecked(new Set(unmetIds));
+  // 신뢰도 임계값 이상 매물 — 일괄 게시 대상 선택
+  const scoreEligible = useMemo(
+    () => listings.filter((l) => Math.round(l.confidence * 100) >= scoreThreshold),
+    [listings, scoreThreshold],
+  );
+  const selectByScore = () => setChecked(new Set(scoreEligible.map((l) => l.id)));
+  // 검수큐 전체를 바로 게시 — 게이트 충족분만 게시되고 미충족은 큐에 남아 개별 검토
+  const bulkPublishAll = () => {
+    if (listings.length === 0) return;
+    setChecked(new Set(listings.map((l) => l.id)));
+    setForcePublish(false);
+    setBatchOpen("approve");
+  };
+  const openApprove = () => setBatchOpen("approve");
 
   // 일괄 승인/반려 mutation
   const batchMutation = useMutation({
@@ -236,9 +264,9 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
           </div>
         </div>
 
-        {/* 검색 + 일괄 액션 */}
-        <div className="flex items-center gap-2 mt-3">
-          <div className="relative flex-1 max-w-md">
+        {/* 검색 + 선택 도구 + 일괄 액션 */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-jeju" />
             <Input
               value={search}
@@ -247,15 +275,64 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
               className="pl-8"
             />
           </div>
+
+          {/* 빠른 액션 — 항상 노출 */}
+          {listings.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={bulkPublishAll}
+                disabled={batchMutation.isPending}
+                className="bg-tangerine hover:bg-tangerine/90 text-tangerine-foreground"
+              >
+                <Layers className="size-3.5" /> 전체 일괄게시 ({listings.length})
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={selectUnmet}
+                disabled={unmetIds.length === 0 || batchMutation.isPending}
+                className="text-tangerine border-tangerine/40 hover:text-tangerine"
+              >
+                <ShieldAlert className="size-3.5" /> 미충족만 선택 ({unmetIds.length})
+              </Button>
+
+              {/* 신뢰도 임계값 이상 선택 */}
+              <div className="flex items-center gap-1 pl-2 border-l border-stone/30">
+                <span className="text-xs text-muted-jeju whitespace-nowrap">신뢰도</span>
+                <Select value={String(scoreThreshold)} onValueChange={(v) => setScoreThreshold(Number(v))}>
+                  <SelectTrigger className="h-8 w-[84px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[95, 90, 85, 80, 70, 60, 50].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}% ↑</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={selectByScore}
+                  disabled={scoreEligible.length === 0 || batchMutation.isPending}
+                  className="text-sea border-sea/40 hover:text-sea"
+                >
+                  <CheckSquare className="size-3.5" /> 선택 ({scoreEligible.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {checkedCount > 0 && (
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-sea/10 text-sea border-sea/30">
                 <CheckSquare className="size-3" />
                 {checkedCount}건 선택
+                {checkedUnmetCount > 0 ? ` · 미충족 ${checkedUnmetCount}` : ""}
               </Badge>
               <Button
                 size="sm"
-                onClick={() => setBatchOpen("approve")}
+                onClick={openApprove}
                 disabled={batchMutation.isPending}
                 className="bg-tangerine hover:bg-tangerine/90 text-tangerine-foreground"
               >
@@ -369,8 +446,14 @@ export function ReviewQueue({ onGoToCollection }: ReviewQueueProps) {
             <AlertDialogDescription>
               {batchOpen === "approve"
                 ? forcePublish
-                  ? `선택한 ${checkedCount}건을 게이트 무시하고 강제 게시합니다.`
-                  : `선택한 ${checkedCount}건을 게시합니다. 게시 게이트 미충족 건은 자동 실패합니다.`
+                  ? `선택한 ${checkedCount}건을 게이트 무시하고 강제 게시합니다.${
+                      checkedUnmetCount > 0 ? ` (미충족 ${checkedUnmetCount}건 포함)` : ""
+                    }`
+                  : `선택한 ${checkedCount}건을 게시합니다. 게시 게이트 미충족 건은 자동 실패합니다.${
+                      checkedUnmetCount > 0
+                        ? ` 현재 미충족 ${checkedUnmetCount}건은 아래 강제 게시를 켜야 게시됩니다.`
+                        : ""
+                    }`
                 : `선택한 ${checkedCount}건을 반려합니다. 복구하려면 다시 검수 큐로 이동해야 합니다.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -442,6 +525,7 @@ function DraftCard({
             <img
               src={listing.thumbnailUrl}
               alt={listing.title}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
             <span className="absolute top-0.5 left-0.5">

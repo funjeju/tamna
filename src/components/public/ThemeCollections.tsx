@@ -140,7 +140,7 @@ export function ThemeCollections({ listings, onPick, loading }: ThemeCollections
                           <img
                             src={c.thumbnailUrl}
                             alt={`${meta.title} 대표 썸네일 ${i + 1}`}
-                            loading="lazy"
+                            loading="lazy" referrerPolicy="no-referrer"
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (

@@ -222,7 +222,7 @@ export function ListingDetail({
                   title={`${listing.title} 영상`}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
-                  loading="lazy"
+                  loading="lazy" referrerPolicy="no-referrer"
                   className="absolute inset-0 h-full w-full"
                 />
               ) : (
@@ -550,7 +550,7 @@ function BlogMedia({
           <img
             src={hero}
             alt={title}
-            loading="lazy"
+            loading="lazy" referrerPolicy="no-referrer"
             onError={() => setBroken((b) => ({ ...b, [active]: true }))}
             className="absolute inset-0 h-full w-full object-contain"
           />
@@ -593,7 +593,7 @@ function BlogMedia({
               <img
                 src={src}
                 alt=""
-                loading="lazy"
+                loading="lazy" referrerPolicy="no-referrer"
                 onError={() => setBroken((b) => ({ ...b, [i]: true }))}
                 className="h-full w-full object-cover"
               />

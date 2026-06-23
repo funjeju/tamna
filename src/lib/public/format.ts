@@ -102,6 +102,7 @@ export function buildListingsQuery(filters: {
   sort?: string;
   status?: string;
   limit?: number;
+  maxAgeDays?: number;
 }): string {
   const sp = new URLSearchParams();
   if (filters.q) sp.set("q", filters.q);
@@ -109,6 +110,7 @@ export function buildListingsQuery(filters: {
   sp.set("status", filters.status ?? "published");
   if (filters.sort) sp.set("sort", filters.sort);
   if (filters.limit) sp.set("limit", String(filters.limit));
+  if (filters.maxAgeDays) sp.set("maxAgeDays", String(filters.maxAgeDays));
   filters.propertyTypes?.forEach((v) => sp.append("propertyTypes", v));
   filters.dealTypes?.forEach((v) => sp.append("dealTypes", v));
   filters.regions?.forEach((v) => sp.append("regions", v));

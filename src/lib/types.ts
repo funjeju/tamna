@@ -1,5 +1,10 @@
 // TamnaIndex — 공통 타입 정의 (Prisma 모델과 1:1, JSON 필드는 파싱된 형태로)
 
+// 공개(유저) 화면에서 노출할 매물의 최대 업로드 경과일.
+// 유튜브/블로그 원본 업로드일(publishedAt) 기준 이 일수를 넘긴 매물은
+// 공개 목록·배너에서 순차적으로 숨김 (DB 삭제 아님, 관리자/상세는 영향 없음).
+export const PUBLIC_MAX_AGE_DAYS = 14;
+
 export type PropertyType =
   | "단독주택"
   | "토지"

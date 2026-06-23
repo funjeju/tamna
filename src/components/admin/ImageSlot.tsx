@@ -95,7 +95,7 @@ export function ImageSlot({
             <span className="text-[10px] text-muted-jeju">업로드 중...</span>
           </div>
         ) : url ? (
-          <img src={url} alt="" className="w-full h-full object-cover" />
+          <img src={url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-jeju">
             <ImagePlus className="size-5" />

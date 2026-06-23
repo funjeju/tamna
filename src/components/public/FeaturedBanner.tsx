@@ -128,7 +128,7 @@ function FeaturedCard({ listing, onOpen }: { listing: Listing; onOpen: (id: stri
         <img
           src={thumb}
           alt={listing.title}
-          loading="lazy"
+          loading="lazy" referrerPolicy="no-referrer"
           onError={() => setErr(true)}
           className="absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-105"
         />

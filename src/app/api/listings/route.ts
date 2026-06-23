@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
   const sort = (sp.get("sort") || "latest") as ListingFilters["sort"];
   const limit = sp.get("limit") ? Number(sp.get("limit")) : 200;
   const sourceType = sp.get("sourceType") || undefined;
+  // 공개 화면 전용: 업로드일(publishedAt) 기준 N일 지난 매물 노출 제외 (관리자는 미전달)
+  const maxAgeDays = sp.get("maxAgeDays") ? Number(sp.get("maxAgeDays")) : undefined;
 
   const where: any = {};
   if (status && status !== "all") where.status = status;
@@ -38,6 +40,11 @@ export async function GET(req: NextRequest) {
     where.areaPyeong = {};
     if (areaMin !== undefined) where.areaPyeong.gte = areaMin;
     if (areaMax !== undefined) where.areaPyeong.lte = areaMax;
+  }
+  if (maxAgeDays && maxAgeDays > 0) {
+    where.publishedAt = {
+      gte: new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000),
+    };
   }
   if (q) {
     where.OR = [

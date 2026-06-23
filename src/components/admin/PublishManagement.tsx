@@ -599,6 +599,7 @@ function PublishRow({
             <img
               src={listing.thumbnailUrl}
               alt={listing.title}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
             <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] text-white py-0.5 ${listing.sourceType === "blog" ? "bg-emerald-600/80" : "bg-red-600/80"}`}>

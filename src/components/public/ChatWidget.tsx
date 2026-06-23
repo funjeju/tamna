@@ -247,7 +247,7 @@ function ChatListingCard({
           <img
             src={thumb}
             alt={listing.title}
-            loading="lazy"
+            loading="lazy" referrerPolicy="no-referrer"
             onError={() => setErr(true)}
             className="size-full object-cover"
           />

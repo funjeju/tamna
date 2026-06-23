@@ -114,7 +114,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
             <img
               src={listing.thumbnailUrl}
               alt={listing.title}
-              loading="lazy"
+              loading="lazy" referrerPolicy="no-referrer"
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgError(true)}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
@@ -125,7 +125,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
               <img
                 src={listing.images[0]}
                 alt={listing.title}
-                loading="lazy"
+                loading="lazy" referrerPolicy="no-referrer"
                 onLoad={() => setImgLoaded(true)}
                 onError={() => setImgError(true)}
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
@@ -133,7 +133,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
             ) : (
               <div className={cn("grid h-full w-full gap-0.5", listing.images.length >= 3 ? "grid-cols-3" : "grid-cols-2")}>
                 {listing.images.slice(0, 3).map((src, i) => (
-                  <img key={i} src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <img key={i} src={src} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
                 ))}
               </div>
             )
@@ -141,7 +141,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
             <img
               src={listing.thumbnailUrl}
               alt={listing.title}
-              loading="lazy"
+              loading="lazy" referrerPolicy="no-referrer"
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgError(true)}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
@@ -205,7 +205,7 @@ export function ListingCard({ listing, onOpen, onFavoriteChange, onHighlight }: 
             <img
               src={listing.thumbnailUrl}
               alt={`${listing.title} 썸네일`}
-              loading="lazy"
+              loading="lazy" referrerPolicy="no-referrer"
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgError(true)}
               className={cn("h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]", imgLoaded ? "opacity-100" : "opacity-0")}
