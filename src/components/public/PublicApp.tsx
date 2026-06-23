@@ -142,6 +142,8 @@ export function PublicApp() {
         listingId: selectedId,
         title: l?.title,
         region: l?.region,
+        propertyType: l?.propertyType,
+        sourceType: l?.sourceType,
       }),
     }).catch(() => {});
     // selectedId 변경 시 1회만 집계 (listings 변경으로 재집계 방지)
@@ -195,6 +197,14 @@ export function PublicApp() {
 
   const handleSearchSubmit = useCallback(
     (q: string) => {
+      const term = q.trim();
+      if (term) {
+        fetch("/api/stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "search", q: term }),
+        }).catch(() => {});
+      }
       goSearch({ ...EMPTY_FILTERS, q: q || undefined });
     },
     [goSearch],
