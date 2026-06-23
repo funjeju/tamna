@@ -50,6 +50,18 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+// DELETE /api/stats — statsListings 항목 정리 (잘못 집계된 매물 제거)
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("listingId");
+  if (!id) return NextResponse.json({ error: "listingId 필요" }, { status: 400 });
+  try {
+    await adminDb.collection("statsListings").doc(id).delete();
+  } catch {
+    /* noop */
+  }
+  return NextResponse.json({ ok: true });
+}
+
 export async function GET() {
   const today = kstDate();
   const days: string[] = [];
