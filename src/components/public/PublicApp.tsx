@@ -50,6 +50,21 @@ export function PublicApp() {
     queryClient.invalidateQueries({ queryKey: ["favorites"] });
   }, [user, queryClient]);
 
+  // 접속 통계 — 세션당 1회 방문 집계
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("tx_visited")) return;
+      sessionStorage.setItem("tx_visited", "1");
+    } catch {
+      /* noop */
+    }
+    fetch("/api/stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "visit" }),
+    }).catch(() => {});
+  }, []);
+
   const [view, setView] = useState<View>("home");
   const [filters, setFilters] = useState<ListingFilters>(EMPTY_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -114,6 +129,25 @@ export function PublicApp() {
 
   // 선택된 매물 — 가능하면 목록에서 찾고, 없으면 상세 API
   const listings = listingsQuery.data?.listings ?? [];
+
+  // 상세조회 통계 — 매물 상세를 열 때 1회 집계
+  useEffect(() => {
+    if (!selectedId) return;
+    const l = listings.find((x) => x.id === selectedId);
+    fetch("/api/stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "detail",
+        listingId: selectedId,
+        title: l?.title,
+        region: l?.region,
+      }),
+    }).catch(() => {});
+    // selectedId 변경 시 1회만 집계 (listings 변경으로 재집계 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const selectedListing = useMemo<Listing | null>(() => {
     if (!selectedId) return null;
     return listings.find((l) => l.id === selectedId) ?? null;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Activity,
   Ban,
+  BarChart3,
   Building2,
   ClipboardList,
   Eye,
@@ -29,10 +30,12 @@ import { AgentManagement } from "./AgentManagement";
 import { OptOutList } from "./OptOutList";
 import { MemberManagement } from "./MemberManagement";
 import { CronSettings } from "./CronSettings";
+import { StatsPanel } from "./StatsPanel";
 import { AdminFooter } from "./AdminFooter";
 
 export type AdminSection =
   | "dashboard"
+  | "stats"
   | "collection"
   | "review"
   | "published"
@@ -55,6 +58,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "대시보드", icon: LayoutDashboard, desc: "전체 KPI" },
+  { id: "stats", label: "접속통계", icon: BarChart3, desc: "방문·상세조회 수치" },
   { id: "collection", label: "수집콘솔", icon: Zap, desc: "자동·수동 수집" },
   { id: "review", label: "검수큐", icon: ClipboardList, desc: "드래프트 검수" },
   { id: "published", label: "게시관리", icon: Eye, desc: "게시중·반려·옵트아웃" },
@@ -66,6 +70,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECTION_TITLES: Record<AdminSection, { title: string; sub: string }> = {
   dashboard: { title: "운영 대시보드", sub: "전체 지표 한눈에 보기" },
+  stats: { title: "접속 통계", sub: "방문·매물 상세조회 집계" },
   collection: { title: "수집 콘솔", sub: "유튜브 매물 자동·수동 수집" },
   review: { title: "검수 큐", sub: "AI 구조화 드래프트 검수" },
   published: { title: "게시 관리", sub: "게시중·반려·옵트아웃 통합 관리" },
@@ -185,6 +190,7 @@ export function AdminApp({ onExitAdmin }: AdminAppProps) {
             {section === "dashboard" && (
               <Dashboard onNavigate={(s) => goSection(s as AdminSection)} />
             )}
+            {section === "stats" && <StatsPanel />}
             {section === "collection" && (
               <CollectionConsole onJobCompleted={() => {
                 /* 추가 콜백 필요시 사용 */

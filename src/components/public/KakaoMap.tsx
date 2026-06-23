@@ -47,12 +47,14 @@ function loadKakaoSdk(): Promise<any> {
 }
 
 // ── 편의시설 범례 정의 ──
+// category: 카카오 카테고리 코드 / keyword: 카테고리에 없는 항목은 키워드 검색
+// (버스정류장은 카테고리 코드가 없음 — SW8은 '지하철역'이라 제주에선 0건)
 const AMENITIES = [
-  { id: "HP8", label: "병원",     emoji: "🏥", color: "#e74c3c" },
-  { id: "SC4", label: "학교",     emoji: "🏫", color: "#3498db" },
-  { id: "PO3", label: "관공서",   emoji: "🏛️", color: "#8e44ad" },
-  { id: "MT1", label: "마트",     emoji: "🛒", color: "#27ae60" },
-  { id: "SW8", label: "버스정류장", emoji: "🚌", color: "#f39c12" },
+  { id: "HP8", label: "병원",     emoji: "🏥", color: "#e74c3c", category: "HP8" },
+  { id: "SC4", label: "학교",     emoji: "🏫", color: "#3498db", category: "SC4" },
+  { id: "PO3", label: "관공서",   emoji: "🏛️", color: "#8e44ad", category: "PO3" },
+  { id: "MT1", label: "마트",     emoji: "🛒", color: "#27ae60", category: "MT1" },
+  { id: "BUS", label: "버스정류장", emoji: "🚌", color: "#f39c12", keyword: "버스정류장" },
 ] as const;
 
 type AmenityId = (typeof AMENITIES)[number]["id"];
@@ -68,6 +70,7 @@ export function KakaoMap({
   const overlaysRef = useRef<any[]>([]);
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const poiMarkersRef = useRef<Map<AmenityId, any[]>>(new Map());
+  const tooltipRef = useRef<{ ov: any; tip: HTMLElement } | null>(null);
   const onSelectRef = useRef(onSelectListing);
   onSelectRef.current = onSelectListing;
   const [status, setStatus] = useState<"loading" | "ready" | "nokey" | "error">(
@@ -151,6 +154,39 @@ export function KakaoMap({
     }
   }, [highlightId]);
 
+  // 주변시설 마커 hover 시 이름 툴팁 (즉시 표시)
+  const showPoiTip = (name: string, pos: any) => {
+    const kakao = window.kakao;
+    const map = mapRef.current;
+    if (!kakao || !map) return;
+    if (!tooltipRef.current) {
+      const tip = document.createElement("div");
+      tip.style.cssText = [
+        "transform:translate(-50%,-165%)",
+        "padding:3px 7px",
+        "border-radius:6px",
+        "background:rgba(20,20,20,.9)",
+        "color:#fff",
+        "font-size:11px",
+        "line-height:1.2",
+        "white-space:nowrap",
+        "pointer-events:none",
+        "box-shadow:0 1px 4px rgba(0,0,0,.35)",
+      ].join(";");
+      const ov = new kakao.maps.CustomOverlay({
+        content: tip,
+        yAnchor: 1,
+        xAnchor: 0.5,
+        zIndex: 6,
+      });
+      tooltipRef.current = { ov, tip };
+    }
+    tooltipRef.current.tip.textContent = name;
+    tooltipRef.current.ov.setPosition(pos);
+    tooltipRef.current.ov.setMap(map);
+  };
+  const hidePoiTip = () => tooltipRef.current?.ov.setMap(null);
+
   // 편의시설 토글
   const toggleAmenity = (amenityId: AmenityId) => {
     if (status !== "ready" || !mapRef.current) return;
@@ -162,6 +198,7 @@ export function KakaoMap({
       // 끄기 — 마커 제거
       (poiMarkersRef.current.get(amenityId) ?? []).forEach((m) => m.setMap(null));
       poiMarkersRef.current.delete(amenityId);
+      hidePoiTip();
       next.delete(amenityId);
     } else {
       // 켜기 — 제주 전역 거점 좌표 기준 반경 검색 (useMapBounds는 현재 화면만 커버해 누락 발생)
@@ -185,6 +222,7 @@ export function KakaoMap({
       const makeMarker = (place: any) => {
         if (seenIds.has(place.id)) return null;
         seenIds.add(place.id);
+        const pos = new kakao.maps.LatLng(place.y, place.x);
         const el = document.createElement("div");
         el.style.cssText = [
           "transform:translate(-50%,-50%)",
@@ -194,12 +232,15 @@ export function KakaoMap({
           "border:2px solid #fff",
           "box-shadow:0 1px 4px rgba(0,0,0,.3)",
           "display:flex","align-items:center","justify-content:center",
-          "font-size:11px","cursor:default",
+          "font-size:11px","cursor:pointer",
         ].join(";");
         el.title = place.place_name;
         el.textContent = amenity.emoji;
+        // hover 시 이름 툴팁
+        el.addEventListener("mouseenter", () => showPoiTip(place.place_name, pos));
+        el.addEventListener("mouseleave", hidePoiTip);
         const overlay = new kakao.maps.CustomOverlay({
-          position: new kakao.maps.LatLng(place.y, place.x),
+          position: pos,
           content: el,
           yAnchor: 0.5, xAnchor: 0.5, zIndex: 2,
         });
@@ -207,39 +248,41 @@ export function KakaoMap({
         return overlay;
       };
 
-      const searchCenter = (center: { lat: number; lng: number }, page = 1) => {
-        ps.categorySearch(
-          amenityId,
-          (data: any[], st: string, pagination: any) => {
-            if (st === kakao.maps.services.Status.OK) {
-              for (const place of data) {
-                const m = makeMarker(place);
-                if (m) allMarkers.push(m);
-              }
-              // 다음 페이지 있으면 계속
-              if (pagination?.hasNextPage && page < 3) {
-                pagination.nextPage();
-              }
+      // 거점별 검색 — 카테고리 항목은 categorySearch, 키워드 항목(버스정류장)은 keywordSearch
+      const runSearch = (center: { lat: number; lng: number }) => {
+        let page = 1;
+        const cb = (data: any[], st: string, pagination: any) => {
+          if (st === kakao.maps.services.Status.OK) {
+            for (const place of data) {
+              const m = makeMarker(place);
+              if (m) allMarkers.push(m);
             }
-            // 마지막 거점까지 완료되면 마커 저장
-            if (!pagination?.hasNextPage || page >= 3) {
-              pending--;
-              if (pending === 0) {
-                poiMarkersRef.current.set(amenityId, allMarkers);
-              }
+            if (pagination?.hasNextPage && page < 3) {
+              page++;
+              pagination.nextPage();
+              return;
             }
-          },
-          {
-            location: new kakao.maps.LatLng(center.lat, center.lng),
-            radius: 20000, // 20km
-            size: 15,
-            page,
-          },
-        );
+          }
+          // 이 거점 완료
+          pending--;
+          if (pending === 0) {
+            poiMarkersRef.current.set(amenityId, allMarkers);
+          }
+        };
+        const opts = {
+          location: new kakao.maps.LatLng(center.lat, center.lng),
+          radius: 20000, // 20km
+          size: 15,
+        };
+        if ("keyword" in amenity) {
+          ps.keywordSearch(amenity.keyword, cb, opts);
+        } else {
+          ps.categorySearch(amenity.category, cb, opts);
+        }
       };
 
       for (const center of JEJU_CENTERS) {
-        searchCenter(center);
+        runSearch(center);
       }
     }
     setActiveAmenities(next);
@@ -300,6 +343,7 @@ export function KakaoMap({
                 (poiMarkersRef.current.get(id) ?? []).forEach((m) => m.setMap(null));
               });
               poiMarkersRef.current.clear();
+              hidePoiTip();
               setActiveAmenities(new Set());
             }}
             className="ml-auto text-[10px] text-muted-foreground hover:text-basalt"
