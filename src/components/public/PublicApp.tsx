@@ -33,6 +33,8 @@ type View = "home" | "search";
 
 const EMPTY_FILTERS: ListingFilters = { sort: "latest", status: "published" };
 
+// 공개 노출 기준 — 원본(유튜브/블로그) 게시일이 3주(21일) 이내인 매물만 노출
+const PUBLIC_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
 // 최신 매물 기준 — 2일 이내
 const LATEST_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 function effTime(l: Listing): number {
@@ -139,7 +141,15 @@ export function PublicApp() {
   });
 
   // 선택된 매물 — 가능하면 목록에서 찾고, 없으면 상세 API
-  const listings = listingsQuery.data?.listings ?? [];
+  // 원본 게시일 3주 초과 매물은 공개 화면에서 제외
+  const listings = useMemo<Listing[]>(() => {
+    const raw = listingsQuery.data?.listings ?? [];
+    const cutoff = Date.now() - PUBLIC_MAX_AGE_MS;
+    return raw.filter((l) => {
+      const t = new Date(l.publishedAt).getTime();
+      return !Number.isFinite(t) || t >= cutoff;
+    });
+  }, [listingsQuery.data]);
 
   // 상세조회 통계 — 매물 상세를 열 때 1회 집계
   useEffect(() => {

@@ -1,9 +1,7 @@
-// TamnaIndex — Gemini 기반 권위/SEO 글 생성기 (SEO·AEO·GEO 구조 강제 + 품질 게이트)
+// TamnaIndex — 권위/SEO 글 생성기 (LLM: LLM_MODEL_GENERATE). SEO·AEO·GEO 구조 강제 + 품질 게이트
 import type { Article, AuthoritySpec } from "./articles";
 import { slugExists } from "./articles";
-
-const GEMINI_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+import { llmJson } from "./llm";
 
 const SITE = "탐라인덱스(tamna-iota.vercel.app)";
 const AUTHOR = "탐라인덱스 편집팀";
@@ -34,40 +32,8 @@ function asciiSlug(s: string): string {
     .slice(0, 60);
 }
 
-async function callGemini(prompt: string): Promise<GenResult | null> {
-  if (!GEMINI_KEY) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY 미설정");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-  for (let i = 0; i < 3; i++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.5,
-          // maxOutputTokens 미지정(모델 기본 상한). 낮게 캡 씌우면 thinking 토큰이
-          // 예산을 먹어 긴 권위 글이 잘려 빈응답이 됨 → 캡 없이 사용.
-        },
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) return null;
-      try {
-        return JSON.parse(text) as GenResult;
-      } catch {
-        return null;
-      }
-    }
-    if ([429, 500, 503].includes(res.status)) {
-      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
-      continue;
-    }
-    throw new Error(`Gemini ${res.status}`);
-  }
-  return null;
+async function callModel(prompt: string): Promise<GenResult | null> {
+  return llmJson<GenResult>({ role: "generate", prompt });
 }
 
 function buildPrompt(opts: { title?: string; keyword: string; brief?: string; keywords?: string[] }): string {
@@ -151,7 +117,7 @@ function finalize(
 export async function generateAuthorityArticle(spec: AuthoritySpec): Promise<Article | null> {
   let g: GenResult | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    g = await callGemini(
+    g = await callModel(
       buildPrompt({ title: spec.title, keyword: spec.keywords[0], brief: spec.brief, keywords: spec.keywords }),
     );
     if (g && passesGate(g)) break;
@@ -178,7 +144,7 @@ export async function generateAuthorityArticle(spec: AuthoritySpec): Promise<Art
 export async function generateAutoArticle(keyword: string): Promise<Article | null> {
   let g: GenResult | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    g = await callGemini(buildPrompt({ keyword }));
+    g = await callModel(buildPrompt({ keyword }));
     if (g && passesGate(g)) break;
     g = null;
   }
