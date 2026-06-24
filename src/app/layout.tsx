@@ -9,6 +9,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://tamna-iota.vercel.app"),
   title: "탐라인덱스 — 지도가 곧 인덱스 | 제주 부동산 영상 매물",
   description:
     "제주의 흩어진 유튜브 부동산 매물 영상을 수집·표준화·지도화해 한 곳에서 검색·비교하는 플랫폼. 육지인 세컨하우스·이주 검토자를 위한 비대면 임장 맥락까지.",
@@ -51,6 +52,32 @@ export default function RootLayout({
       <body
         className={`${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        {/* Organization + WebSite 구조화데이터 (GEO/SEO) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "탐라인덱스",
+                url: "https://tamna-iota.vercel.app",
+                description: "제주 부동산 영상·블로그 매물을 지도로 모아 검색·비교하는 플랫폼.",
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "탐라인덱스",
+                url: "https://tamna-iota.vercel.app",
+                potentialAction: {
+                  "@type": "SearchAction",
+                  target: "https://tamna-iota.vercel.app/?q={search_term_string}",
+                  "query-input": "required name=search_term_string",
+                },
+              },
+            ]),
+          }}
+        />
         {children}
         <Toaster />
       </body>

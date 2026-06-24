@@ -2,9 +2,10 @@
 // TamnaIndex — 공개 사이트 최상위 컴포넌트 (자체完結)
 // page.tsx에서 <PublicApp /> 단일 import로 사용.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bookmark, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
+import { BookOpen, Bookmark, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,16 @@ export function PublicApp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "visit" }),
     }).catch(() => {});
+  }, []);
+
+  // 가이드 글 등에서 들어온 ?listing=<id> 딥링크 → 상세 자동 오픈
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URLSearchParams(window.location.search).get("listing");
+    if (id) {
+      setSelectedId(id);
+      setHighlightId(id);
+    }
   }, []);
 
   const [view, setView] = useState<View>("home");
@@ -299,8 +310,14 @@ export function PublicApp() {
             />
           </form>
 
-          {/* 우측 — 찜 / 마이 */}
+          {/* 우측 — 가이드 / 찜 / 마이 */}
           <div className="flex shrink-0 items-center gap-1">
+            <Button asChild variant="ghost" size="sm" className="hidden gap-1.5 text-basalt sm:inline-flex">
+              <Link href="/guide" aria-label="제주 부동산 가이드">
+                <BookOpen className="size-4 text-sea" aria-hidden="true" />
+                가이드
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="sm"
