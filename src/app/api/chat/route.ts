@@ -6,6 +6,7 @@ import { buildListingsQuery, formatPrice } from "@/lib/public/format";
 import { REGION_NAMES } from "@/lib/regions";
 import { PROPERTY_TYPES, DEAL_TYPES, THEMES } from "@/lib/types";
 import type { Listing } from "@/lib/types";
+import { llmJson } from "@/lib/llm";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -123,25 +124,89 @@ function parseSort(msg: string): ParsedFilters["sort"] {
   return null;
 }
 
-// ── 자연어 → 필터 (어휘는 결정적, 가격/면적은 정규식, LLM은 선택적 보강) ──
+// ── LLM(의도) 보강: 자유로운 표현·암시된 조건·자유 키워드 추출 ──
+interface LlmIntent {
+  regions?: string[];
+  propertyTypes?: string[];
+  dealTypes?: string[];
+  themes?: string[];
+  priceMin?: number | null;
+  priceMax?: number | null;
+  areaMin?: number | null;
+  areaMax?: number | null;
+  q?: string | null;
+  sort?: string | null;
+  offtopic?: boolean;
+}
+
+async function llmIntent(message: string): Promise<LlmIntent | null> {
+  const prompt = `제주 부동산 검색 챗봇의 질의를 구조화 필터로 변환한다. JSON 하나만 출력.
+
+[메시지] ${message}
+
+규칙:
+- regions: 다음 중에서만 골라 배열(없으면 []): ${REGION_NAMES.join(", ")}
+- propertyTypes: 다음 중에서만(없으면 []): ${(PROPERTY_TYPES as string[]).join(", ")}
+- dealTypes: 다음 중에서만(없으면 []): ${(DEAL_TYPES as string[]).join(", ")}
+- themes: 다음 중에서만(없으면 []): ${(THEMES as string[]).join(", ")}
+- priceMin/priceMax: 만원 단위 정수 또는 null. 예) "3억 이하" → priceMax 30000.
+- areaMin/areaMax: 평 단위 정수 또는 null.
+- q: 위 분류로 안 잡히는 핵심 자유 키워드 1개(예: 신축, 리모델링, 마당, 주차) 또는 null.
+- sort: "price_asc"(싼순) | "price_desc"(비싼순) | "area"(넓은순) | null.
+- offtopic: 제주 매물 검색과 무관한 잡담/질문이면 true, 아니면 false.
+- 추측으로 지역·유형을 지어내지 말 것. 메시지에 근거가 있을 때만.
+
+출력 JSON: {"regions":[],"propertyTypes":[],"dealTypes":[],"themes":[],"priceMin":null,"priceMax":null,"areaMin":null,"areaMax":null,"q":null,"sort":null,"offtopic":false}`;
+  try {
+    return await llmJson<LlmIntent>({ role: "intent", prompt, retries: 2 });
+  } catch {
+    return null;
+  }
+}
+
+// ── 자연어 → 필터 (결정적 어휘/정규식 + LLM 보강을 병합) ──
 async function parseQuery(message: string): Promise<ParsedFilters> {
   const vocab = extractVocab(message);
   const price = parsePriceRegex(message);
   const area = parseAreaRegex(message);
   const sort = parseSort(message);
 
+  // LLM 의도(실패해도 규칙 결과로 동작)
+  const llm = await llmIntent(message);
+  const pick = <T>(whitelist: readonly string[], arr?: string[]): string[] =>
+    Array.isArray(arr) ? arr.filter((x) => whitelist.includes(x)) : [];
+
+  // 결정적 결과 우선, 비었으면 LLM으로 채움
+  const regions = vocab.regions.length ? vocab.regions : pick(REGION_NAMES, llm?.regions);
+  const propertyTypes = vocab.propertyTypes.length
+    ? vocab.propertyTypes
+    : pick(PROPERTY_TYPES as string[], llm?.propertyTypes);
+  const dealTypes = vocab.dealTypes.length ? vocab.dealTypes : pick(DEAL_TYPES as string[], llm?.dealTypes);
+  const themes = vocab.themes.length ? vocab.themes : pick(THEMES as string[], llm?.themes);
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+  const llmSort = ["price_asc", "price_desc", "area"].includes(llm?.sort ?? "")
+    ? (llm!.sort as ParsedFilters["sort"])
+    : null;
+  const q = typeof llm?.q === "string" && llm.q.trim() ? llm.q.trim().slice(0, 30) : null;
+
+  const matchedAny =
+    regions.length || propertyTypes.length || dealTypes.length || themes.length ||
+    price.priceMin || price.priceMax || area.areaMin || area.areaMax || q;
+
   return {
-    regions: vocab.regions,
-    propertyTypes: vocab.propertyTypes,
-    dealTypes: vocab.dealTypes,
-    themes: vocab.themes,
-    priceMin: price.priceMin,
-    priceMax: price.priceMax,
-    areaMin: area.areaMin,
-    areaMax: area.areaMax,
-    q: null,
-    sort,
-    offtopic: false,
+    regions,
+    propertyTypes,
+    dealTypes,
+    themes,
+    priceMin: price.priceMin ?? num(llm?.priceMin),
+    priceMax: price.priceMax ?? num(llm?.priceMax),
+    areaMin: area.areaMin ?? num(llm?.areaMin),
+    areaMax: area.areaMax ?? num(llm?.areaMax),
+    q,
+    sort: sort ?? llmSort,
+    // 아무 조건도 없고 LLM이 잡담이라 판단하면 offtopic
+    offtopic: !matchedAny && llm?.offtopic === true,
   };
 }
 

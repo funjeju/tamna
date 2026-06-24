@@ -33,8 +33,8 @@ type View = "home" | "search";
 
 const EMPTY_FILTERS: ListingFilters = { sort: "latest", status: "published" };
 
-// 공개 노출 기준 — 원본(유튜브/블로그) 게시일이 3주(21일) 이내인 매물만 노출
-const PUBLIC_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
+// 공개 노출 기준 — 원본(유튜브/블로그) 게시일이 30일 이내인 매물만 노출
+const PUBLIC_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 // 최신 매물 기준 — 2일 이내
 const LATEST_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 function effTime(l: Listing): number {
