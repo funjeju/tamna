@@ -46,10 +46,8 @@ async function callGemini(prompt: string): Promise<GenResult | null> {
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.5,
-          maxOutputTokens: 16000,
-          // gemini-2.5-flash는 thinking 모델 — 추론 토큰이 출력 예산을 먹어
-          // 본문이 잘리므로 thinking을 끄고 전 예산을 콘텐츠에 사용
-          thinkingConfig: { thinkingBudget: 0 },
+          // maxOutputTokens 미지정(모델 기본 상한). 낮게 캡 씌우면 thinking 토큰이
+          // 예산을 먹어 긴 권위 글이 잘려 빈응답이 됨 → 캡 없이 사용.
         },
       }),
     });
