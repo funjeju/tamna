@@ -43,7 +43,11 @@ async function callGemini(prompt: string): Promise<GenResult | null> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.5 },
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.5,
+          maxOutputTokens: 8192, // 긴 본문 잘림 방지
+        },
       }),
     });
     if (res.ok) {
@@ -142,12 +146,17 @@ function finalize(
   };
 }
 
-// 권위 글 생성 (시드 스펙 기반)
+// 권위 글 생성 (시드 스펙 기반) — 게이트 실패 시 1회 재생성
 export async function generateAuthorityArticle(spec: AuthoritySpec): Promise<Article | null> {
-  const g = await callGemini(
-    buildPrompt({ title: spec.title, keyword: spec.keywords[0], brief: spec.brief, keywords: spec.keywords }),
-  );
-  if (!g || !passesGate(g)) return null;
+  let g: GenResult | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    g = await callGemini(
+      buildPrompt({ title: spec.title, keyword: spec.keywords[0], brief: spec.brief, keywords: spec.keywords }),
+    );
+    if (g && passesGate(g)) break;
+    g = null;
+  }
+  if (!g) return null;
   g.title = spec.title; // 제목은 스펙 고정(일관성)
   const slug = await uniqueSlug(spec.slug);
   return finalize(
@@ -164,10 +173,15 @@ export async function generateAuthorityArticle(spec: AuthoritySpec): Promise<Art
   );
 }
 
-// 자동 글 생성 (키워드 기반)
+// 자동 글 생성 (키워드 기반) — 게이트 실패 시 1회 재생성
 export async function generateAutoArticle(keyword: string): Promise<Article | null> {
-  const g = await callGemini(buildPrompt({ keyword }));
-  if (!g || !passesGate(g)) return null;
+  let g: GenResult | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    g = await callGemini(buildPrompt({ keyword }));
+    if (g && passesGate(g)) break;
+    g = null;
+  }
+  if (!g) return null;
   const base = asciiSlug(g.slug || "") || asciiSlug(keyword) || `jeju-${Date.now()}`;
   const slug = await uniqueSlug(base);
   return finalize(

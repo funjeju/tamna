@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { listArticles } from "@/lib/articles";
 
 const SITE_URL = "https://tamna-iota.vercel.app";
-export const revalidate = 600;
+export const revalidate = 120;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let guide: MetadataRoute.Sitemap = [];

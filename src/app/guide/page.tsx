@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Compass } from "lucide-react";
 import { listArticles } from "@/lib/articles";
 
-export const revalidate = 600; // 10분 ISR
+export const revalidate = 120; // 새 글 반영 위해 2분 ISR
 
 const SITE_URL = "https://tamna-iota.vercel.app";
 
