@@ -46,7 +46,10 @@ async function callGemini(prompt: string): Promise<GenResult | null> {
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.5,
-          maxOutputTokens: 8192, // 긴 본문 잘림 방지
+          maxOutputTokens: 16000,
+          // gemini-2.5-flash는 thinking 모델 — 추론 토큰이 출력 예산을 먹어
+          // 본문이 잘리므로 thinking을 끄고 전 예산을 콘텐츠에 사용
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     });
