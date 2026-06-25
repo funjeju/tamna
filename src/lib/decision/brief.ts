@@ -53,7 +53,7 @@ export function buildBriefPrompt(m: BriefMetrics): string {
 
 [상황] kind=${m.kind}, 지역=${m.region ?? "-"}, 유형=${m.propertyType ?? "-"}
 ${m.kind === "buy"
-  ? `가능여부=${m.affordable ? "가능" : "한도초과"}, 한도사유=${m.limitedBy ?? "-"}, DSR=${m.dsr}%(한도 ${m.dsrLimit}%), 취득세율=${m.acqRatePct}%${m.surcharged ? "(다주택 중과)" : ""}`
+  ? `가능여부=${m.affordable ? "가능" : "한도초과"}, 한도사유=${m.limitedBy === "dsr" ? "소득(DSR)" : m.limitedBy === "cash_ltv" ? "현금·LTV" : "-"}, DSR=${m.dsr}%(한도 ${m.dsrLimit}%), 취득세율=${m.acqRatePct}%${m.surcharged ? "(다주택 중과)" : ""}`
   : `전월세 매물(보증금·월세). 환산보증금·중개보수 기준.`}
 
 규칙:
