@@ -15,10 +15,14 @@ export async function POST(req: NextRequest) {
     | "blog"
     | "rotation"
     | "content"
+    | "policy"
     | null;
 
   // 즉시 수집 트리거 — 서버에서 CRON_SECRET을 붙여 cron 라우트 호출
-  if (trigger === "youtube" || trigger === "blog" || trigger === "rotation" || trigger === "content") {
+  if (
+    trigger === "youtube" || trigger === "blog" || trigger === "rotation" ||
+    trigger === "content" || trigger === "policy"
+  ) {
     const path =
       trigger === "youtube"
         ? "/api/cron/collect"
@@ -26,7 +30,9 @@ export async function POST(req: NextRequest) {
           ? "/api/cron/collect-blog"
           : trigger === "rotation"
             ? "/api/cron/collect-rotation"
-            : "/api/cron/content";
+            : trigger === "content"
+              ? "/api/cron/content"
+              : "/api/cron/policy-refresh";
     const base = req.nextUrl.origin;
     const res = await fetch(`${base}${path}?force=true`, {
       headers: {

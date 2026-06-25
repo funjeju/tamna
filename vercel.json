@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/content",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/policy-refresh",
+      "schedule": "0 3 * * 1"
     }
   ]
 }

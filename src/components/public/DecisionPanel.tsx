@@ -1,7 +1,7 @@
 "use client";
 // TamnaIndex — 자금·세금 분석 패널 (참고용). 매물값 자동 + 사람정보 입력 → 즉시 연쇄계산.
 // 숫자는 전부 결정론 엔진(src/lib/decision/engine)이 계산. 외부 API 없음.
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calculator, Info, ChevronDown, Sparkles, Loader2, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,18 @@ function won(manwon: number): string {
   return formatPrice(Math.round(manwon));
 }
 
+interface PolicyResponse {
+  ltvNonRegulatedPct: number;
+  ltvRegulatedPct: number;
+  ltvFirstTimePct: number;
+  dsrLimitPct: number;
+  stressAddRatePct: number;
+  jeonseWolseConvCapPct: number;
+  asOf: string;
+  sources: string[];
+  refreshed: boolean;
+}
+
 const POLICY_ASOF = RULES.ltv.nonRegulated.asOf;
 
 export function DecisionPanel({ listing }: { listing: Listing }) {
@@ -48,7 +60,31 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
   const [term, setTerm] = useState(30);
   const [loanType, setLoanType] = useState<LoanType>("equal_payment");
 
-  const ctx = useMemo(() => contextForRegion(listing.region), [listing.region]);
+  // 유효 정책값 (RAG 갱신 over 시드) — 패널 열 때 1회 로드
+  const [policy, setPolicy] = useState<PolicyResponse | null>(null);
+  useEffect(() => {
+    if (!open || policy) return;
+    fetch("/api/decision/rules")
+      .then((r) => r.json())
+      .then((p: PolicyResponse) => setPolicy(p))
+      .catch(() => {});
+  }, [open, policy]);
+
+  const ctx = useMemo(() => {
+    const base = contextForRegion(listing.region);
+    if (!policy || typeof policy.dsrLimitPct !== "number") return base;
+    return {
+      regulated: base.regulated,
+      ltvCapPct: base.regulated ? policy.ltvRegulatedPct : policy.ltvNonRegulatedPct,
+      stressAddRatePct: policy.stressAddRatePct,
+      dsrLimitPct: policy.dsrLimitPct,
+      meta: {
+        asOf: policy.asOf || base.meta.asOf,
+        source: policy.sources?.[0] ?? base.meta.source,
+        verifyRequired: !policy.refreshed,
+      },
+    };
+  }, [listing.region, policy]);
 
   const buy = useMemo(() => {
     if (isRent) return null;
@@ -202,7 +238,7 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
       kind: isRent ? "rent" : "buy",
       inputs,
       results,
-      contextLine: `지역 ${ctx.regulated ? "규제" : "비규제"} · LTV ${ctx.ltvCapPct}% · DSR ${ctx.dsrLimitPct}% · 정책기준 ${POLICY_ASOF}(확인필요)`,
+      contextLine: `지역 ${ctx.regulated ? "규제" : "비규제"} · LTV ${ctx.ltvCapPct}% · DSR ${ctx.dsrLimitPct}% · 정책기준 ${ctx.meta?.asOf ?? POLICY_ASOF}${ctx.meta?.verifyRequired === false ? "" : "(확인필요)"}`,
       brief: b ? { summary: b.summary, points: b.points } : null,
       disclaimer: LEGAL_DISCLAIMER,
     };
@@ -354,7 +390,8 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
           {/* 신뢰 배지 + 면책 */}
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="border-stone/50 text-[10px] text-muted-foreground">
-              <Info className="size-2.5" /> 정책 기준 {POLICY_ASOF} · 확인필요
+              <Info className="size-2.5" /> 정책 기준 {ctx.meta?.asOf ?? POLICY_ASOF} ·{" "}
+              {ctx.meta?.verifyRequired === false ? "검색 갱신" : "확인필요"}
             </Badge>
             <Badge variant="outline" className="border-stone/50 text-[10px] text-muted-foreground">
               지역: {ctx.regulated ? "규제" : "비규제"} · LTV {ctx.ltvCapPct}% · DSR {ctx.dsrLimitPct}%
