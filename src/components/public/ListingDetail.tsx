@@ -223,7 +223,7 @@ export function ListingDetail({
                   title={`${listing.title} 영상`}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
-                  loading="lazy" referrerPolicy="no-referrer"
+                  loading="lazy"
                   className="absolute inset-0 h-full w-full"
                 />
               ) : (
