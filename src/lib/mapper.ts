@@ -19,6 +19,7 @@ export function mapListing(
     dealType: row.dealType as ListingType["dealType"],
     priceText: row.priceText,
     priceManwon: row.priceManwon,
+    monthlyRentManwon: (row as { monthlyRentManwon?: number | null }).monthlyRentManwon ?? null,
     priceHistory: safeParse<PriceHistoryEntry[]>(row.priceHistory, []),
     areaM2: row.areaM2,
     areaPyeong: row.areaPyeong,

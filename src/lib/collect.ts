@@ -41,6 +41,7 @@ interface Structured {
   propertyType: string;
   dealType: string;
   priceManwon: number;
+  monthlyRentManwon: number | null;
   priceText: string;
   areaM2: number | null;
   areaPyeong: number | null;
@@ -217,7 +218,8 @@ async function structure(v: YtVideo, transcript: string): Promise<Structured | n
 - 제주도 실제 부동산 매물 소개 영상이 아니면 isListing=false 로만 응답.
 - propertyType 은 다음 중 하나: ${PROPERTY_TYPES.join(", ")}
 - dealType 은 다음 중 하나: ${DEAL_TYPES.join(", ")}
-- priceManwon 은 정수(만원 단위). 예: 2억8천 → 28000. 모르면 0.
+- priceManwon 은 정수(만원 단위). 전월세면 보증금. 예: 2억8천 → 28000. 모르면 0.
+- monthlyRentManwon 은 월세(만원 정수). 매매·전세면 null. 예: 보증금1000/월50 → 50.
 - region 은 다음 중 가장 가까운 하나: ${REGION_NAMES.join(", ")}
 - addressText 는 가능한 한 구체적인 제주 주소(읍면동/리). 모르면 region 기반 추정.
 - themes 는 다음 중 0~3개: ${THEMES.join(", ")}
@@ -225,7 +227,7 @@ async function structure(v: YtVideo, transcript: string): Promise<Structured | n
 - confidence 는 0~1 사이 추출 신뢰도.
 
 출력 JSON 스키마:
-{"isListing":bool,"propertyType":str,"dealType":str,"priceManwon":int,"priceText":str,"areaM2":number|null,"areaPyeong":number|null,"zoning":str|null,"addressText":str,"region":str,"summary":str,"highlights":[str],"keywords":[str],"themes":[str],"confidence":number}`;
+{"isListing":bool,"propertyType":str,"dealType":str,"priceManwon":int,"monthlyRentManwon":int|null,"priceText":str,"areaM2":number|null,"areaPyeong":number|null,"zoning":str|null,"addressText":str,"region":str,"summary":str,"highlights":[str],"keywords":[str],"themes":[str],"confidence":number}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
   const body = JSON.stringify({
@@ -484,6 +486,7 @@ export async function runCollection(opts: {
         dealType: DEAL_TYPES.includes(s.dealType as any) ? s.dealType : "매매",
         priceText: s.priceText || (s.priceManwon ? `${s.priceManwon.toLocaleString()}만원` : "가격문의"),
         priceManwon: Math.round(s.priceManwon || 0),
+        monthlyRentManwon: typeof s.monthlyRentManwon === "number" ? Math.round(s.monthlyRentManwon) : null,
         priceHistory: "[]",
         areaM2: s.areaM2 ?? null,
         areaPyeong: s.areaPyeong ?? (s.areaM2 ? Math.round((s.areaM2 / 3.3058) * 10) / 10 : null),

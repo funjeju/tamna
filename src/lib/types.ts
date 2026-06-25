@@ -56,7 +56,8 @@ export interface Listing {
   propertyType: PropertyType;
   dealType: DealType;
   priceText: string;
-  priceManwon: number;
+  priceManwon: number; // 매매가(매매) 또는 보증금(전월세)
+  monthlyRentManwon: number | null; // 월세(전월세) — 만원, 없으면 null
   priceHistory: PriceHistoryEntry[];
   areaM2: number | null;
   areaPyeong: number | null;
