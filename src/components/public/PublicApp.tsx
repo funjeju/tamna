@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Bookmark, Calculator, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
+import { BookOpen, Bookmark, Calculator, Compass, Heart, NotebookPen, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -326,6 +326,12 @@ export function PublicApp() {
               <Link href="/calculator" aria-label="부동산 계산기">
                 <Calculator className="size-4 text-sea" aria-hidden="true" />
                 계산기
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="hidden gap-1.5 text-basalt lg:inline-flex">
+              <Link href="/notebook" aria-label="실장님 수첩">
+                <NotebookPen className="size-4 text-sea" aria-hidden="true" />
+                수첩
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm" className="hidden gap-1.5 text-basalt sm:inline-flex">

@@ -104,3 +104,65 @@ export function buildReportHtml(d: ReportData): string {
   <div class="disc">${esc(d.disclaimer)}</div>
 </body></html>`;
 }
+
+// ── 상담일지(실장님 수첩) 보고서 ──
+export interface ConsultReportData {
+  createdAt: string;
+  customerName: string;
+  contact: string;
+  consultType: string;
+  region: string;
+  propertyType: string;
+  dealType: string;
+  budgetText: string;
+  conditions: string[];
+  interested: string[];
+  nextActions: string[];
+  summary: string;
+  disclaimer: string;
+}
+
+function listBlock(title: string, items: string[]): string {
+  if (!items || items.length === 0) return "";
+  return `<section><h2>${esc(title)}</h2><ul class="bul">${items
+    .map((x) => `<li>${esc(x)}</li>`)
+    .join("")}</ul></section>`;
+}
+
+export function buildConsultReportHtml(d: ConsultReportData): string {
+  const info: ReportRow[] = [
+    { label: "고객명", value: d.customerName || "-" },
+    { label: "연락처", value: d.contact || "-" },
+    { label: "상담유형", value: d.consultType || "-" },
+    { label: "관심지역", value: d.region || "-" },
+    { label: "유형·거래", value: [d.propertyType, d.dealType].filter(Boolean).join(" · ") || "-" },
+    { label: "예산·자금", value: d.budgetText || "-" },
+  ];
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>상담일지</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Pretendard,-apple-system,sans-serif;color:#1c2522;margin:0;padding:28px 32px;font-size:13px;line-height:1.5}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #176b6b;padding-bottom:10px}
+  .head h1{font-size:20px;margin:0;color:#176b6b}.head .brand{font-size:11px;color:#5d665f}
+  h2{font-size:13px;margin:16px 0 6px;color:#176b6b;border-left:3px solid #176b6b;padding-left:7px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e6e9e7;vertical-align:top}
+  th{width:30%;color:#5d665f;font-weight:500}
+  .summary{background:#f1f6f5;border-left:3px solid #176b6b;padding:8px 10px;border-radius:4px}
+  ul.bul{margin:4px 0 0;padding-left:18px} ul.bul li{padding:2px 0}
+  .disc{margin-top:14px;font-size:10px;color:#8b938f;border-top:1px solid #e6e9e7;padding-top:8px}
+  @media print{body{padding:0}@page{margin:16mm}}
+</style></head>
+<body onload="window.print()">
+  <div class="head"><h1>상담일지</h1><div class="brand">탐라인덱스 · ${esc(d.createdAt)}</div></div>
+  <h2>고객 정보</h2>
+  <table>${rowsTable(info)}</table>
+  ${d.summary ? `<h2>상담 요약</h2><p class="summary">${esc(d.summary)}</p>` : ""}
+  ${listBlock("희망 조건", d.conditions)}
+  ${listBlock("관심 매물", d.interested)}
+  ${listBlock("다음 액션", d.nextActions)}
+  <div class="disc">${esc(d.disclaimer)}</div>
+</body></html>`;
+}
