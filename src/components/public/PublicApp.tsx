@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Bookmark, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
+import { BookOpen, Bookmark, Calculator, Compass, Heart, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -322,6 +322,12 @@ export function PublicApp() {
 
           {/* 우측 — 가이드 / 찜 / 마이 */}
           <div className="flex shrink-0 items-center gap-1">
+            <Button asChild variant="ghost" size="sm" className="hidden gap-1.5 text-basalt sm:inline-flex">
+              <Link href="/calculator" aria-label="부동산 계산기">
+                <Calculator className="size-4 text-sea" aria-hidden="true" />
+                계산기
+              </Link>
+            </Button>
             <Button asChild variant="ghost" size="sm" className="hidden gap-1.5 text-basalt sm:inline-flex">
               <Link href="/guide" aria-label="제주 부동산 가이드">
                 <BookOpen className="size-4 text-sea" aria-hidden="true" />

@@ -109,6 +109,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           </Link>
           <nav className="ml-auto flex items-center gap-4 text-sm">
             <Link href="/" className="text-muted-foreground hover:text-sea">매물 지도</Link>
+            <Link href="/calculator" className="text-muted-foreground hover:text-sea">계산기</Link>
             <Link href="/guide" className="text-muted-foreground hover:text-sea">가이드</Link>
           </nav>
         </div>

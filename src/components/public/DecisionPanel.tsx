@@ -47,8 +47,8 @@ interface PolicyResponse {
 
 const POLICY_ASOF = RULES.ltv.nonRegulated.asOf;
 
-export function DecisionPanel({ listing }: { listing: Listing }) {
-  const [open, setOpen] = useState(false);
+export function DecisionPanel({ listing, defaultOpen = false }: { listing: Listing; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const deal = useMemo(() => listingToDeal(listing), [listing]);
   const isRent = deal.purpose === "rent";
 
