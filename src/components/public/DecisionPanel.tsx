@@ -1,10 +1,12 @@
 "use client";
 // TamnaIndex — 자금·세금 분석 패널 (참고용). 매물값 자동 + 사람정보 입력 → 즉시 연쇄계산.
 // 숫자는 전부 결정론 엔진(src/lib/decision/engine)이 계산. 외부 API 없음.
-import { useMemo, useState } from "react";
-import { Calculator, Info, ChevronDown } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Calculator, Info, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { Brief, BriefMetrics } from "@/lib/decision/brief";
 import type { Listing } from "@/lib/types";
 import { formatPrice } from "@/lib/public/format";
 import { listingToDeal } from "@/lib/decision/adapter";
@@ -106,6 +108,45 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
     };
   }, [isRent, deal.property.depositManwon, deal.property.monthlyRentManwon]);
 
+  // AI 브리핑 (숫자→의미→행동) — 온디맨드, 서버 프록시 + 후검증
+  const [brief, setBrief] = useState<(Brief & { ai?: boolean }) | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const fetchBrief = useCallback(async () => {
+    const metrics: BriefMetrics = isRent
+      ? {
+          kind: "rent",
+          region: listing.region,
+          propertyType: listing.propertyType,
+          feeRentRatePct: rent?.fee.ratePct,
+        }
+      : {
+          kind: "buy",
+          region: listing.region,
+          propertyType: listing.propertyType,
+          affordable: buy?.affordable,
+          limitedBy: buy?.afford.limitedBy,
+          dsr: buy?.dsr,
+          dsrLimit: ctx.dsrLimitPct,
+          acqRatePct: buy?.acq.acqRatePct,
+          surcharged: buy?.acq.surcharged,
+          feeRatePct: buy?.fee.ratePct,
+          ltvCapPct: ctx.ltvCapPct,
+        };
+    setBriefLoading(true);
+    try {
+      const res = await fetch("/api/decision/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(metrics),
+      });
+      setBrief(await res.json());
+    } catch {
+      setBrief(null);
+    } finally {
+      setBriefLoading(false);
+    }
+  }, [isRent, listing.region, listing.propertyType, rent, buy, ctx]);
+
   return (
     <section className="rounded-xl border border-stone/50 bg-paper/30">
       <button
@@ -183,6 +224,52 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
               <Stat label="중개보수(상한)" value={won(rent.fee.feeManwon)} sub={`${rent.fee.ratePct}%`} />
             </div>
           )}
+
+          {/* AI 해석 (숫자→의미→행동) */}
+          <div className="rounded-lg border border-sea/30 bg-sea/5 p-3">
+            {!brief ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={fetchBrief}
+                disabled={briefLoading}
+                className="w-full border-sea/40 text-sea hover:text-sea"
+              >
+                {briefLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {briefLoading ? "분석 중…" : "AI 해석 보기"}
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-sea" />
+                  <span className="text-xs font-semibold text-basalt">AI 해석</span>
+                  <Badge variant="outline" className="border-stone/50 text-[9px] text-muted-foreground">
+                    {brief.ai ? "AI" : "기본 해석"}
+                  </Badge>
+                  <button type="button" onClick={fetchBrief} className="ml-auto text-[10px] text-muted-foreground hover:text-sea">
+                    다시
+                  </button>
+                </div>
+                <p className="text-[13px] leading-relaxed text-basalt">{brief.summary}</p>
+                <ul className="space-y-1">
+                  {brief.points?.map((p, i) => (
+                    <li key={i} className="flex gap-1.5 text-[12px] leading-relaxed">
+                      <span
+                        className={cn(
+                          "mt-0.5 shrink-0 text-[10px] font-bold",
+                          p.level === "good" ? "text-sea" : p.level === "warn" ? "text-tangerine" : "text-muted-foreground",
+                        )}
+                      >
+                        {p.level === "good" ? "✓" : p.level === "warn" ? "⚠" : "·"}
+                      </span>
+                      <span className="text-basalt/90">{p.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           {/* 신뢰 배지 + 면책 */}
           <div className="flex flex-wrap items-center gap-1.5">
