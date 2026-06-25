@@ -2,11 +2,12 @@
 // TamnaIndex — 자금·세금 분석 패널 (참고용). 매물값 자동 + 사람정보 입력 → 즉시 연쇄계산.
 // 숫자는 전부 결정론 엔진(src/lib/decision/engine)이 계산. 외부 API 없음.
 import { useCallback, useMemo, useState } from "react";
-import { Calculator, Info, ChevronDown, Sparkles, Loader2 } from "lucide-react";
+import { Calculator, Info, ChevronDown, Sparkles, Loader2, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Brief, BriefMetrics } from "@/lib/decision/brief";
+import { buildReportHtml, type ReportData, type ReportRow } from "@/lib/decision/report";
 import type { Listing } from "@/lib/types";
 import { formatPrice } from "@/lib/public/format";
 import { listingToDeal } from "@/lib/decision/adapter";
@@ -139,13 +140,80 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(metrics),
       });
-      setBrief(await res.json());
+      const d = (await res.json()) as Brief & { ai?: boolean };
+      setBrief(d);
+      return d;
     } catch {
       setBrief(null);
+      return null;
     } finally {
       setBriefLoading(false);
     }
   }, [isRent, listing.region, listing.propertyType, rent, buy, ctx]);
+
+  // 자금계획서 출력 (인쇄 → Save as PDF). AI 종합이 없으면 먼저 불러옴.
+  const [printing, setPrinting] = useState(false);
+  const printReport = useCallback(async () => {
+    setPrinting(true);
+    const b = brief ?? (await fetchBrief());
+    const inputs: ReportRow[] = isRent
+      ? [
+          { label: "연소득", value: won(income) },
+          { label: "보유현금", value: won(cash) },
+        ]
+      : [
+          { label: "연소득", value: won(income) },
+          { label: "보유현금", value: won(cash) },
+          { label: "보유 주택수", value: `${houseCount}채` },
+          { label: "대출금리", value: `${rate}%` },
+          { label: "만기", value: `${term}년` },
+          {
+            label: "상환방식",
+            value: loanType === "equal_payment" ? "원리금균등" : loanType === "equal_principal" ? "원금균등" : "만기일시",
+          },
+        ];
+    const results: ReportRow[] = buy
+      ? [
+          { label: "내 자금 가능 여부", value: buy.affordable ? "가능" : "한도 초과", sub: `한도: ${buy.afford.limitedBy === "dsr" ? "소득(DSR)" : "현금·LTV"}` },
+          { label: "가능 매매가(역산)", value: won(buy.afford.maxPriceManwon) },
+          { label: "가능 대출(LTV)", value: won(buy.loan) },
+          { label: "월 상환액", value: won(buy.monthly) },
+          { label: "DSR", value: `${buy.dsr}%`, sub: `한도 ${ctx.dsrLimitPct}%` },
+          { label: "취득세 등", value: won(buy.acq.totalManwon), sub: `세율 ${buy.acq.acqRatePct}%${buy.acq.surcharged ? " 중과" : ""}` },
+          { label: "중개보수(상한)", value: won(buy.fee.feeManwon) },
+          { label: "필요현금(대출 외)", value: won(buy.cashNeeded) },
+        ]
+      : rent
+        ? [
+            { label: "보증금", value: won(rent.deposit) },
+            { label: "월세", value: rent.monthly ? `${rent.monthly.toLocaleString()}만원` : "—" },
+            { label: "환산보증금", value: won(rent.converted), sub: "보증금+월세×100" },
+            { label: "중개보수(상한)", value: won(rent.fee.feeManwon) },
+          ]
+        : [];
+
+    const data: ReportData = {
+      title: isRent ? "임대 분석 보고서" : "자금계획서",
+      createdAt: `${new Date().toLocaleDateString("ko-KR")} 작성`,
+      listingTitle: listing.title,
+      listingMeta: [listing.propertyType, listing.dealType, listing.region, listing.areaPyeong ? `${listing.areaPyeong}평` : ""]
+        .filter(Boolean)
+        .join(" · "),
+      kind: isRent ? "rent" : "buy",
+      inputs,
+      results,
+      contextLine: `지역 ${ctx.regulated ? "규제" : "비규제"} · LTV ${ctx.ltvCapPct}% · DSR ${ctx.dsrLimitPct}% · 정책기준 ${POLICY_ASOF}(확인필요)`,
+      brief: b ? { summary: b.summary, points: b.points } : null,
+      disclaimer: LEGAL_DISCLAIMER,
+    };
+    const w = window.open("", "_blank", "width=900,height=1000");
+    if (w) {
+      w.document.open();
+      w.document.write(buildReportHtml(data));
+      w.document.close();
+    }
+    setPrinting(false);
+  }, [brief, fetchBrief, isRent, income, cash, houseCount, rate, term, loanType, buy, rent, ctx, listing]);
 
   return (
     <section className="rounded-xl border border-stone/50 bg-paper/30">
@@ -270,6 +338,18 @@ export function DecisionPanel({ listing }: { listing: Listing }) {
               </div>
             )}
           </div>
+
+          {/* 자금계획서 출력 */}
+          <Button
+            type="button"
+            size="sm"
+            onClick={printReport}
+            disabled={printing || (!buy && !rent)}
+            className="w-full bg-sea text-sea-foreground hover:bg-sea/90"
+          >
+            {printing ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
+            자금계획서 출력 (PDF)
+          </Button>
 
           {/* 신뢰 배지 + 면책 */}
           <div className="flex flex-wrap items-center gap-1.5">
