@@ -45,6 +45,7 @@ import {
 } from "@/lib/public/format";
 import { cn } from "@/lib/utils";
 import { KakaoMiniMap } from "./KakaoMiniMap";
+import { DecisionPanel } from "./DecisionPanel";
 
 interface ListingDetailProps {
   open: boolean;
@@ -522,6 +523,9 @@ export function ListingDetail({
                 </label>
               </div>
             </section>
+
+            {/* 자금·세금 분석 (결정 레이어) */}
+            <DecisionPanel listing={listing} />
           </div>
         </div>
       </DialogContent>
