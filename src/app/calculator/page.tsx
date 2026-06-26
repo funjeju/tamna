@@ -2,7 +2,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Compass, Calculator } from "lucide-react";
-import { CalculatorTool } from "@/components/public/CalculatorTool";
+import { CalculatorSuite } from "@/components/public/CalculatorSuite";
 
 const SITE_URL = "https://tamna-iota.vercel.app";
 
@@ -46,11 +46,11 @@ export default function CalculatorPage() {
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             매물 정보와 내 자금만 입력하면 가능 매매가(역산)·대출·월상환·DSR·취득세·필요현금까지 즉시 계산하고,
-            AI 해석과 자금계획서 PDF까지 만들어 드립니다. 참고용이며 정책값은 최신 검색 기준으로 갱신됩니다.
+            대출·DSR·취득세·양도세·증여세·재산세·중개보수·전월세전환·임대수익률·평㎡까지 한곳에서. 참고용이며 정책·세율은 최신 기준으로 갱신됩니다.
           </p>
         </div>
 
-        <CalculatorTool />
+        <CalculatorSuite />
       </main>
 
       <footer className="border-t border-stone/40 py-8 text-center text-xs text-muted-foreground">
